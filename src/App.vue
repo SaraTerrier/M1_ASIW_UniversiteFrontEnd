@@ -14,20 +14,17 @@ import NavBar from './presentation/components/navigation/NavBar.vue'
 
 <style scoped>
 main {
-  height: 100vh;
-  height: -webkit-fill-available;
-  max-height: 100vh;
   overflow-x: auto;
   overflow-y: hidden;
 }
 
 main .application {
-  height: 100%;
   width: 100%;
+  height: 100vh;
 }
 
 .content {
+  height: 100vh;
   flex-grow: 1;
-  padding: 15px 10px;
 }
 </style>
