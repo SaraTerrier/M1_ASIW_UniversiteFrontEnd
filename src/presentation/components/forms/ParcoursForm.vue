@@ -40,6 +40,8 @@ const props = defineProps({
   },
 });
 
+const emit = defineEmits(['create:parcours', 'update:parcours']); 
+
 onBeforeMount(() => {
   if (props.parcours) {
     currentParcours.value = props.parcours;
@@ -51,15 +53,19 @@ const saveParcours = () => {
     return;
   }
   if (currentParcours.value.ID) {
+    // quand tu retireras le mock, ne pas oublier d'ajouter currentParcours.value.ID
     ParcoursDAO.getInstance().update(currentParcours.value).then(() => {
       alert('Parcours mis à jour avec succès');
+      // Emission de l'événement de mise à jour avec une copie du parcours mis à jour
+      emit('update:parcours', structuredClone(toRaw(currentParcours.value)));
       closeForm();
     }).catch((ex) => {
       alert(ex.message);
     });
   } else {
-    ParcoursDAO.getInstance().create(currentParcours.value).then(() => {
+    ParcoursDAO.getInstance().create(currentParcours.value).then((newParcours) => {
       alert('Parcours créé avec succès');
+      emit('create:parcours', newParcours); 
       closeForm();
     }).catch((ex) => {
       alert(ex.message);

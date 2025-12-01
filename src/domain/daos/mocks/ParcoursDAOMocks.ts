@@ -39,6 +39,15 @@ export class ParcoursDAOMock {
         });
     }
 
+    public delete(id: number): Promise<void> {
+        return new Promise((resolve, reject) => {
+            const idx = this.data.findIndex(p => p.ID === id);
+            if (idx === -1) return reject(new Error('Parcours non trouvé'));
+            this.data.splice(idx, 1);
+            setTimeout(() => resolve(), 200);
+        });
+    }
+
     public list(): Promise<Parcours[]> {
         return Promise.resolve([...this.data]);
     }
