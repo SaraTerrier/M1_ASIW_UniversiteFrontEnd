@@ -23,7 +23,7 @@ export class ParcoursDAOMock {
     public create(parcours: Parcours): Promise<Parcours> {
         return new Promise((resolve) => {
             const copy = new Parcours(this.nextId++, parcours.NomParcours ?? '', parcours.AnneeFormation ?? null);
-            copy.ID = copy.ID ?? (this.nextId - 1);
+            copy.Id = copy.Id ?? (this.nextId - 1);
             this.data.push(copy);
             // simulate async
             setTimeout(() => resolve(copy), 200);
@@ -32,7 +32,7 @@ export class ParcoursDAOMock {
 
     public update(parcours: Parcours): Promise<Parcours> {
         return new Promise((resolve, reject) => {
-            const idx = this.data.findIndex(p => p.ID === parcours.ID);
+            const idx = this.data.findIndex(p => p.Id === parcours.Id);
             if (idx === -1) return reject(new Error('Parcours non trouvé'));
             this.data[idx] = { ...parcours };
             setTimeout(() => resolve(this.data[idx]), 200);
@@ -41,7 +41,7 @@ export class ParcoursDAOMock {
 
     public delete(id: number): Promise<void> {
         return new Promise((resolve, reject) => {
-            const idx = this.data.findIndex(p => p.ID === id);
+            const idx = this.data.findIndex(p => p.Id === id);
             if (idx === -1) return reject(new Error('Parcours non trouvé'));
             this.data.splice(idx, 1);
             setTimeout(() => resolve(), 200);
@@ -54,7 +54,7 @@ export class ParcoursDAOMock {
 
     public findById(id: number | null): Promise<Parcours | null> {
         if (id === null) return Promise.resolve(null);
-        const p = this.data.find(d => d.ID === id) ?? null;
+        const p = this.data.find(d => d.Id === id) ?? null;
         return Promise.resolve(p ? { ...p } : null);
     }
 }

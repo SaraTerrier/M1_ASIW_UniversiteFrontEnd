@@ -6,18 +6,20 @@ import CustomButton from '@/presentation/components/forms/components/CustomButto
 import UesForm from '@/presentation/components/forms/UesForm.vue';
 import CustomTable from '../components/tables/CustomTable.vue'; 
 import { Ues } from '@/domain/entities/Ues'; 
-//import { UeDAO } from '@/domain/daos/UeDAO';
-import { UesDAOMocks as UeDAO } from '@/domain/daos/mocks/UesDAOMocks'; 
+import { UesDAO } from '@/domain/daos/UesDAO';
+import { ParcoursDAO } from '@/domain/daos/ParcoursDAO';
+import { Parcours } from '@/domain/entities/Parcours';
 
 const ueForm = ref<typeof UesForm | null>(null); 
-const ues = ref<Ues[]>([]); 
+const ues = ref<Ues[]>([]);
+const parcoursMap = ref<Map<number, Parcours>>(new Map());
 
 const onUesCreated = (newUes: Ues) => { 
   ues.value.unshift(newUes); 
 }; 
 
 const onUesUpdated = (updatedUes: Ues) => { 
-  const index = ues.value.findIndex(p => p.ID === updatedUes.ID); 
+  const index = ues.value.findIndex(p => p.Id === updatedUes.Id); 
   if (index !== -1) { 
     ues.value[index] = updatedUes; 
   }
@@ -39,9 +41,9 @@ const onDeleteUes = (p: Ues) => {
 
     if (result.isConfirmed) { 
 
-      UeDAO.getInstance().delete(p.ID!).then(() => { 
+      UesDAO.getInstance().delete(p.Id!).then(() => { 
 
-        ues.value = ues.value.filter((ues) => ues.ID !== p.ID); 
+        ues.value = ues.value.filter((item) => item.Id !== p.Id); 
 
       }).catch(() => { 
 
@@ -62,17 +64,43 @@ const formatterSuppression = (ues: Ues) => {
   return '<i class="bi bi-trash-fill text-danger"></i>'; 
 };
 
+const formatterParcours = (ues: Ues) => {
+  // Récupère les données des parcours associés à l'UE, retourne un tableau vide si inexistant
+  const parcoursData = ues.Parcours as any[] || [];
+  // Si aucun parcours n'est associé, retourne un tableau vide
+  if (parcoursData.length === 0) return [];
+
+  // Tableau qui contiendra les noms des parcours
+  let noms: string[] = [];
+
+  // Vérifie si les parcours sont stockés sous forme d'IDs (number)
+  if (typeof parcoursData[0] === 'number') {
+      // Récupère le nom de chaque parcours via son ID depuis la map, sinon affiche "ID {id}"
+      noms = parcoursData.map((id: number) => parcoursMap.value.get(id)?.NomParcours || `ID ${id}`);
+  } else {
+      // Les parcours sont déjà des objets complets, récupère directement le nom
+      noms = parcoursData.map((p: any) => p.NomParcours);
+  }
+
+  // Retourne les noms des parcours séparés par une virgule et un espace
+  return noms.join(', ');
+};
+
 const columns = [ 
   { field: 'EditionUes', label: 'Edition', formatter: formatterEdition, onClick: (p: Ues) => ueForm.value?.openForm(p), style: 'width: 32px; text-align: center;' },
-  { field: 'ID', label: 'ID', formatter: null,  onClick: undefined, style: undefined },
+  { field: 'Id', label: 'Id', formatter: null,  onClick: undefined, style: undefined },
   { field: 'Intitule', label: 'Intitulé', formatter: null, onClick: undefined, style : undefined },
   { field: 'NumeroUe', label: 'Numéro Ue', formatter: null, onClick: undefined, style : undefined },
-  { field: 'EnseigneeDans', label: 'Enseignée Dans', formatter: null, onClick: undefined, style : undefined },
+  { field: 'Parcours', label: 'Parcours', formatter: formatterParcours, onClick: undefined, style : undefined },
   { field: 'DeleteUes', label: 'Suppression', formatter: formatterSuppression, onClick: onDeleteUes, style: 'width: 32px;text-align:center;' }, 
 ];
 
-onMounted(() => { 
-  UeDAO.getInstance().list().then((data) => { 
+onMounted(async () => {
+  const parcoursList = await ParcoursDAO.getInstance().list();
+    parcoursList.forEach(p => {
+        if (p.Id) parcoursMap.value.set(p.Id, p);
+  });
+  UesDAO.getInstance().list().then((data) => { 
     ues.value = data; 
   }); 
 }); 
@@ -80,7 +108,6 @@ onMounted(() => {
 </script>
 
 <template> 
-
     <div class="container-fluid"> 
       <div class="card mt-5"> 
         <div class="card-header"> 
@@ -94,7 +121,7 @@ onMounted(() => {
         </div> 
 
         <div class="card-body"> 
-          <CustomTable idAttribute="ID" :columns="columns" :data="ues" />
+          <CustomTable idAttribute="Id" :columns="columns" :data="ues" />
         </div> 
 
       </div> 

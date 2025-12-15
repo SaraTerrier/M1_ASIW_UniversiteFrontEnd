@@ -1,14 +1,48 @@
-export interface IUes {
-  ID: number | null;
-  NumeroUe: string | null;
+import { Parcours } from './Parcours';
+
+export interface IUE {
+
+  Id: number | null;
+
   Intitule: string | null;
-  EnseigneeDans?: number[] | null;
+
+  NumeroUe: string | null;
+
+  Parcours: Parcours[] | null;
+  toJSON(): Object;
+
 }
-export class Ues implements IUes {
+
+export class Ues implements IUE {
+
   constructor(
-    public ID: number | null,
-    public NumeroUe: string | null,
+
+    public Id: number | null,
+
     public Intitule: string | null,
-    public EnseigneeDans?: number[] | null,
-  ) {}
-}
+
+    public NumeroUe: string | null,
+
+    public Parcours: Parcours[] | null
+
+  ) { }
+
+
+
+  toJSON(): Object {
+
+    return {
+
+      Id: this.Id,
+
+      Intitule: this.Intitule,
+
+      NumeroUe: this.NumeroUe,
+
+      Parcours: this.Parcours?.map((parcours) => parcours.Id)
+
+    };
+
+  }
+
+} 

@@ -1,6 +1,7 @@
 import type { Parcours } from '../entities/Parcours'; 
 import type { IDAO } from './IDAO'; 
-import axios from 'axios'; 
+import apiClient from '../config/axiosConfig';
+import { ErrorMessage } from '../utils/ErrorMessage';
 
 export class ParcoursDAO implements IDAO<Parcours> { 
   private static instance: ParcoursDAO; 
@@ -16,33 +17,47 @@ export class ParcoursDAO implements IDAO<Parcours> {
 
   public async create(data: Parcours): Promise<Parcours> { 
     try { 
-      const response = await axios.post(`${import.meta.env.VITE_API_URL}/api/Parcours`, data); 
+      const response = await apiClient.post(`/api/Parcours`, data); 
       return response.data; 
     } catch (error) { 
-      throw new Error('Impossible de créer le nouveau parcours'); 
+      throw new Error(ErrorMessage(error, 'Impossible de créer le nouveau parcours')); 
     } 
   } 
 
   public async get(id: number): Promise<Parcours> { 
-    // Retrieve a Parcours document from the database 
-    return { ID: id, NomParcours: 'Parcours 1', AnneeFormation: 2024 }; 
+    try { 
+      const response = await apiClient.get(`/api/Parcours/${id}`); 
+      return response.data; 
+    } catch (error) { 
+      throw new Error(ErrorMessage(error,'Impossible de récupérer le parcours')); 
+    } 
   } 
  
   public async update(id: number, data: Parcours): Promise<Parcours> { 
-    // Update a Parcours document in the database 
-    return data; 
+    try { 
+      const response = await apiClient.put(`/api/Parcours/${id}`, data); 
+      return response.data; 
+    } catch (error) { 
+      throw new Error(ErrorMessage(error,'Impossible de mettre à jour le parcours')); 
+    } 
   } 
 
   public async delete(id: number): Promise<void> { 
-    // Delete a Parcours document from the database 
+    try { 
+      const response = await apiClient.delete(`/api/Parcours/${id}`); 
+      return response.data; 
+    } catch (error) { 
+      throw new Error(ErrorMessage(error,'Impossible de mettre à jour le parcours')); 
+    } 
   } 
  
   public async list(): Promise<Parcours[]> { 
-    // List all Parcours documents from the database 
-    return [ 
-      { ID: 1, NomParcours: 'Parcours 1', AnneeFormation: 2024 }, 
-      { ID: 2, NomParcours: 'Parcours 2', AnneeFormation: 2024 } 
-    ]; 
+        try { 
+      const response = await apiClient.get(`/api/Parcours`); 
+      return response.data; 
+    } catch (error) { 
+      throw new Error(ErrorMessage(error,'Impossible de récupérer les parcours')); 
+    } 
   } 
   
 } 

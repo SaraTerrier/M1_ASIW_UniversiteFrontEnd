@@ -6,8 +6,7 @@ import CustomButton from '@/presentation/components/forms/components/CustomButto
 import ParcoursForm from '@/presentation/components/forms/ParcoursForm.vue';
 import CustomTable from '../components/tables/CustomTable.vue'; 
 import { Parcours } from '@/domain/entities/Parcours'; 
-//import { ParcoursDAO } from '@/domain/daos/ParcoursDAO';
-import { ParcoursDAOMock as ParcoursDAO } from '@/domain/daos/mocks/ParcoursDAOMocks'; 
+import { ParcoursDAO } from '@/domain/daos/ParcoursDAO';
 
 const parcoursForm = ref<typeof ParcoursForm | null>(null); 
 const parcours = ref<Parcours[]>([]); 
@@ -17,7 +16,7 @@ const onParcoursCreated = (newParcours: Parcours) => {
 }; 
 
 const onParcoursUpdated = (updatedParcours: Parcours) => { 
-  const index = parcours.value.findIndex(p => p.ID === updatedParcours.ID); 
+  const index = parcours.value.findIndex(p => p.Id === updatedParcours.Id); 
   if (index !== -1) { 
     parcours.value[index] = updatedParcours; 
   }
@@ -39,9 +38,9 @@ const onDeleteParcours = (p: Parcours) => {
 
     if (result.isConfirmed) { 
 
-      ParcoursDAO.getInstance().delete(p.ID!).then(() => { 
+      ParcoursDAO.getInstance().delete(p.Id!).then(() => { 
 
-        parcours.value = parcours.value.filter((parcours) => parcours.ID !== p.ID); 
+        parcours.value = parcours.value.filter((item) => item.Id !== p.Id); 
 
       }).catch(() => { 
 
@@ -65,7 +64,7 @@ const formatterSuppression = (parcours: Parcours) => {
 
 const columns = [ 
   { field: 'EditionParcours', label: 'Edition', formatter: formatterEdition, onClick: (p: Parcours) => parcoursForm.value?.openForm(p), style: 'width: 32px; text-align: center;' },
-  { field: 'ID', label: 'ID', formatter: null,  onClick: undefined, style: undefined },
+  { field: 'Id', label: 'Id', formatter: null,  onClick: undefined, style: undefined },
   { field: 'NomParcours', label: 'Intitulé', formatter: null, onClick: undefined, style : undefined },
   { field: 'AnneeFormation', label: 'Année', formatter: null, onClick: undefined, style: undefined },
   { field: 'DeleteParcours', label: 'Suppression', formatter: formatterSuppression, onClick: onDeleteParcours, style: 'width: 32px;text-align:center;' }, 
@@ -94,7 +93,7 @@ onMounted(() => {
         </div> 
 
         <div class="card-body"> 
-          <CustomTable idAttribute="ID" :columns="columns" :data="parcours" />
+          <CustomTable idAttribute="Id" :columns="columns" :data="parcours" />
         </div> 
 
       </div> 
