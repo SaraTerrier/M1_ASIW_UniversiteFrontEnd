@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
+import { useRouter } from 'vue-router';
 import Swal from 'sweetalert2'; 
 import { BootstrapButtonEnum } from '@/types/BootstrapButtonEnum';
 import CustomButton from '@/presentation/components/forms/components/CustomButton.vue';
@@ -10,6 +11,7 @@ import { UesDAO } from '@/domain/daos/UesDAO';
 import { ParcoursDAO } from '@/domain/daos/ParcoursDAO';
 import { Parcours } from '@/domain/entities/Parcours';
 
+const router = useRouter();
 const ueForm = ref<typeof UesForm | null>(null); 
 const ues = ref<Ues[]>([]);
 const parcoursMap = ref<Map<number, Parcours>>(new Map());
@@ -86,8 +88,12 @@ const formatterParcours = (ues: Ues) => {
   return noms.join(', ');
 };
 
+const onEditUes = (ues: Ues) => {
+  router.push(`/ues/${ues.Id}`);
+};
+
 const columns = [ 
-  { field: 'EditionUes', label: 'Edition', formatter: formatterEdition, onClick: (p: Ues) => ueForm.value?.openForm(p), style: 'width: 32px; text-align: center;' },
+  { field: 'EditionUes', label: 'Edition', formatter: formatterEdition, onClick: onEditUes, style: 'width: 32px; text-align: center;' },
   { field: 'Id', label: 'Id', formatter: null,  onClick: undefined, style: undefined },
   { field: 'Intitule', label: 'Intitulé', formatter: null, onClick: undefined, style : undefined },
   { field: 'NumeroUe', label: 'Numéro Ue', formatter: null, onClick: undefined, style : undefined },

@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router';
 import HomeView from '../presentation/views/HomeView.vue';
 import ParcoursListView from '@/presentation/views/ParcoursListView.vue';
 import UesListView from '@/presentation/views/UesListView.vue';
+import UeDetailView from '@/presentation/views/UeDetailView.vue';
 import EtudiantListView from '@/presentation/views/EtudiantListView.vue';
 
 const router = createRouter({
@@ -21,6 +22,11 @@ const router = createRouter({
       path: '/ues',
       name: 'ues',
       component: UesListView
+    },
+    {
+      path: '/ues/:id',
+      name: 'ue-detail',
+      component: UeDetailView
     },
     {
       path: '/etudiants',

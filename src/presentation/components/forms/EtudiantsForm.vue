@@ -43,9 +43,9 @@ const openForm = (etudiant: Etudiants | null = null) => {
         originalParcoursId.value = parcours?.Id || null;
         currentEtudiant.value = new Etudiants(
             etudiant.Id,
-            etudiant.NumEtud,
             etudiant.Nom,
             etudiant.Prenom,
+            etudiant.NumEtud,
             etudiant.Email,
             parcours
         );
