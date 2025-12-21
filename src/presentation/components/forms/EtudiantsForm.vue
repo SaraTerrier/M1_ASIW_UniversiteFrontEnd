@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onBeforeMount, toRaw, watch } from 'vue';
+import { useToast } from 'vue-toastification';
 import { BootstrapButtonEnum } from '@/types/BootstrapButtonEnum';
 import { Etudiants } from '@/domain/entities/Etudiants';
 import CustomInput from '@/presentation/components/forms/components/CustomInput.vue';
@@ -9,10 +10,12 @@ import { ParcoursDAO } from '@/domain/daos/ParcoursDAO';
 import { EtudiantsDAO } from '@/domain/daos/EtudiantsDAO';
 import { Parcours } from '@/domain/entities/Parcours';
 
+const toast = useToast();
 const currentEtudiant = ref<Etudiants>(new Etudiants(null, null, null, null, null, null));
 const originalParcoursId = ref<number | null>(null);
 const parcoursOptions = ref<Parcours[]>([]);
 const isOpen = ref(false);
+const isSaving = ref(false);
 
 const formErrors = ref<{
   NumEtud: string | null;
@@ -80,26 +83,37 @@ onBeforeMount(() => {
 
 const saveEtudiants = () => {
   if (formErrors.value.Nom || formErrors.value.Prenom || formErrors.value.Parcours || formErrors.value.NumEtud || formErrors.value.Email) {
+    toast.warning('⚠️ Veuillez corriger les erreurs du formulaire', {
+      timeout: 3000
+    });
     return;
   }
+  
+  isSaving.value = true;
+  
   if (currentEtudiant.value.Id) {
     EtudiantsDAO.getInstance().update(currentEtudiant.value.Id, currentEtudiant.value, originalParcoursId.value).then(() => {
-      alert('Etudiants mis à jour avec succès');
-      // Emission de l'événement de mise à jour avec une copie du etudiant mis à jour
       emit('update:etudiant', JSON.parse(JSON.stringify(toRaw(currentEtudiant.value))));
       closeForm();
     }).catch((ex) => {
       console.error('Erreur lors de la mise à jour:', ex);
-      alert(ex.message);
+      toast.error(`❌ Erreur: ${ex.message}`, {
+        timeout: 4000
+      });
+    }).finally(() => {
+      isSaving.value = false;
     });
   } else {
     EtudiantsDAO.getInstance().create(currentEtudiant.value).then((newEtudiant) => {
-      alert('Etudiant créé avec succès');
       emit('create:etudiant', newEtudiant);
       closeForm();
     }).catch((ex) => {
       console.error('Erreur lors de la création:', ex);
-      alert(ex.message);
+      toast.error(`❌ Erreur: ${ex.message}`, {
+        timeout: 4000
+      });
+    }).finally(() => {
+      isSaving.value = false;
     });
   }
 };
@@ -164,67 +178,112 @@ defineExpose({
 </script>
 
 <template>
-  <CustomModal :isOpen="isOpen">
+  <CustomModal :isOpen="isOpen" width="700px">
     <template v-slot:title>
-      <template v-if="etudiant && etudiant.Id"> Modification de l'Etudiant</template>
-      <template v-else> Nouvel Etudiant</template>
-    </template>
-    <template v-slot:body>
-      <div class="text-start mt-1 mb-1">
-        <form>
-          <CustomInput v-model="currentEtudiant.NumEtud" class="mt-2" id="numetud" libelle="Numéro Étudiant" type="text"
-            placeholder="Numéro d'Étudiant" :error="formErrors.NumEtud" />
-          <CustomInput v-model="currentEtudiant.Nom" id="nom" libelle="Nom" type="text"
-            placeholder="Nom de l'Étudiant" :error="formErrors.Nom" />
-          <CustomInput v-model="currentEtudiant.Prenom" id="prenom" libelle="Prénom" type="text"
-            placeholder="Prénom de l'Étudiant" :error="formErrors.Prenom" />
-          <CustomInput v-model="currentEtudiant.Email" id="email" libelle="Email" type="email"
-            placeholder="Email de l'Étudiant" :error="formErrors.Email" />
-          <div class="form-group">
-            <label for="intitule">Parcours :</label>
-            <v-select label="NomParcours" v-model="currentEtudiant.ParcoursSuivi" :options="parcoursOptions"></v-select>
-            <div v-if="formErrors.Parcours" class="invalid-feedback">
-              {{ formErrors.Parcours }}
-            </div>
-          </div>
-        </form>
+      <div class="form-title">
+        <i :class="currentEtudiant.Id ? 'bi bi-pencil-square' : 'bi bi-plus-circle'" class="me-2"></i>
+        <span v-if="currentEtudiant.Id">Modification de l'Étudiant</span>
+        <span v-else>Nouvel Étudiant</span>
       </div>
-      <CustomButton class="mt-1" style="margin-left: 5px" :color="BootstrapButtonEnum.danger" @click="closeForm">
-        Annuler
-      </CustomButton>
-      <CustomButton class="mt-1" style="margin-left: 5px" :color="BootstrapButtonEnum.primary" @click="saveEtudiants">
-        Enregistrer
-      </CustomButton>
+    </template>
+
+    <template v-slot:body>
+      <form @submit.prevent="saveEtudiants" class="etudiant-form">
+        <CustomInput 
+          v-model="currentEtudiant.NumEtud" 
+          id="numetud" 
+          libelle="Numéro Étudiant" 
+          type="text"
+          placeholder="Ex: 12345678" 
+          :error="formErrors.NumEtud"
+          icon="bi bi-hash"
+        />
+
+        <div class="form-row">
+          <CustomInput 
+            v-model="currentEtudiant.Nom" 
+            id="nom" 
+            libelle="Nom" 
+            type="text"
+            placeholder="Ex: Dupont" 
+            :error="formErrors.Nom"
+            icon="bi bi-person-fill"
+          />
+
+          <CustomInput 
+            v-model="currentEtudiant.Prenom" 
+            id="prenom" 
+            libelle="Prénom" 
+            type="text"
+            placeholder="Ex: Marie" 
+            :error="formErrors.Prenom"
+            icon="bi bi-person-fill"
+          />
+        </div>
+
+        <CustomInput 
+          v-model="currentEtudiant.Email" 
+          id="email" 
+          libelle="Email" 
+          type="email"
+          placeholder="Ex: marie.dupont@example.com" 
+          :error="formErrors.Email"
+          icon="bi bi-envelope-fill"
+        />
+
+        <div class="form-group-modern">
+          <label for="parcours" class="form-label-modern">
+            Parcours
+            <span v-if="formErrors.Parcours" class="text-danger ms-1">*</span>
+          </label>
+          <div class="select-wrapper">
+            <i class="select-icon bi bi-diagram-3-fill"></i>
+            <v-select 
+              label="NomParcours" 
+              v-model="currentEtudiant.ParcoursSuivi" 
+              :options="parcoursOptions"
+              placeholder="Sélectionnez un parcours"
+              class="v-select-modern"
+            ></v-select>
+          </div>
+          <div v-if="formErrors.Parcours" class="error-message">
+            <i class="bi bi-x-circle me-1"></i>
+            {{ formErrors.Parcours }}
+          </div>
+        </div>
+
+        <div class="form-actions">
+          <CustomButton 
+            :color="BootstrapButtonEnum.danger" 
+            @click="closeForm"
+            :disabled="isSaving"
+            type="button"
+          >
+            <i class="bi bi-x-circle me-2"></i>
+            Annuler
+          </CustomButton>
+
+          <CustomButton 
+            :color="BootstrapButtonEnum.primary" 
+            @click="saveEtudiants"
+            :loading="isSaving"
+            :disabled="isSaving"
+            type="button"
+          >
+            <i class="bi bi-check-circle me-2" v-if="!isSaving"></i>
+            {{ isSaving ? 'Enregistrement...' : 'Enregistrer' }}
+          </CustomButton>
+        </div>
+      </form>
     </template>
   </CustomModal>
 </template>
 
 <style scoped>
-.custom-modal {
-  position: absolute;
-  left: 0;
-  top: 0;
-  height: 100%;
-  width: 100%;
-  background-color: rgba(87, 86, 86, 0.5);
+/* Styles spécifiques à EtudiantsForm */
+.etudiant-form {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-}
-
-.custom-modal .card {
-  width: 250px;
-}
-
-.card-header {
-  background: #273656;
-  color: white;
-  text-align: left;
-}
-
-.card-text {
-  text-align: left;
+  gap: var(--spacing-2);
 }
 </style>

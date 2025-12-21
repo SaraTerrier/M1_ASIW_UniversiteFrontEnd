@@ -14,17 +14,17 @@ import NavBar from './presentation/components/navigation/NavBar.vue'
 
 <style scoped>
 main {
-  overflow-x: auto;
-  overflow-y: hidden;
+  overflow-x: hidden;
 }
 
 main .application {
   width: 100%;
-  height: 100vh;
+  min-height: 100vh;
 }
 
 .content {
-  height: 100vh;
   flex-grow: 1;
+  overflow-y: auto;
+  padding-bottom: var(--spacing-6);
 }
 </style>

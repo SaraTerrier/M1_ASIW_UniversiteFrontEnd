@@ -2,6 +2,7 @@
 import { onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import Swal from 'sweetalert2'; 
+import { useToast } from 'vue-toastification';
 import { BootstrapButtonEnum } from '@/types/BootstrapButtonEnum';
 import CustomButton from '@/presentation/components/forms/components/CustomButton.vue';
 import UesForm from '@/presentation/components/forms/UesForm.vue';
@@ -12,50 +13,62 @@ import { ParcoursDAO } from '@/domain/daos/ParcoursDAO';
 import { Parcours } from '@/domain/entities/Parcours';
 
 const router = useRouter();
+const toast = useToast();
 const ueForm = ref<typeof UesForm | null>(null); 
 const ues = ref<Ues[]>([]);
 const parcoursMap = ref<Map<number, Parcours>>(new Map());
+const isLoading = ref<boolean>(true);
+const isDeleting = ref<boolean>(false);
 
 const onUesCreated = (newUes: Ues) => { 
-  ues.value.unshift(newUes); 
+  ues.value.unshift(newUes);
+  toast.success('✨ UE créée avec succès !', {
+    timeout: 3000
+  });
 }; 
 
 const onUesUpdated = (updatedUes: Ues) => { 
   const index = ues.value.findIndex(p => p.Id === updatedUes.Id); 
   if (index !== -1) { 
-    ues.value[index] = updatedUes; 
+    ues.value[index] = updatedUes;
+    toast.info('📝 UE mise à jour !', {
+      timeout: 3000
+    });
   }
 };
 
 const onDeleteUes = (p: Ues) => { 
-
   Swal.fire({ 
-
-    title: 'Êtes-vous sûr de vouloir supprimer cette Ue ?', 
-
+    title: 'Êtes-vous sûr ?', 
+    text: `Voulez-vous vraiment supprimer l'UE "${p.Intitule}" ?`,
+    icon: 'warning',
     showCancelButton: true, 
-
-    confirmButtonText: 'Supprimer', 
-
-    cancelButtonText: 'Annuler', 
-
+    confirmButtonText: '🗑️ Supprimer', 
+    cancelButtonText: 'Annuler',
+    confirmButtonColor: '#e63946',
+    cancelButtonColor: '#6c757d',
+    reverseButtons: true,
+    showClass: {
+      popup: 'animate-scale-in'
+    }
   }).then((result) => { 
-
-    if (result.isConfirmed) { 
-
+    if (result.isConfirmed) {
+      isDeleting.value = true;
       UesDAO.getInstance().delete(p.Id!).then(() => { 
-
-        ues.value = ues.value.filter((item) => item.Id !== p.Id); 
-
-      }).catch(() => { 
-
-        alert('Une erreur est survenue lors de la suppression de l\'Ue'); 
-      }); 
-
+        ues.value = ues.value.filter((item) => item.Id !== p.Id);
+        toast.success('🗑️ UE supprimée avec succès !', {
+          timeout: 3000
+        });
+      }).catch((error) => {
+        console.error('Erreur lors de la suppression:', error);
+        toast.error('❌ Erreur lors de la suppression de l’UE', {
+          timeout: 4000
+        });
+      }).finally(() => {
+        isDeleting.value = false;
+      });
     } 
-
   }) 
-
 } 
 
 const formatterEdition = (ues: Ues) => { 
@@ -102,40 +115,140 @@ const columns = [
 ];
 
 onMounted(async () => {
-  const parcoursList = await ParcoursDAO.getInstance().list();
+  isLoading.value = true;
+  try {
+    const parcoursList = await ParcoursDAO.getInstance().list();
     parcoursList.forEach(p => {
-        if (p.Id) parcoursMap.value.set(p.Id, p);
-  });
-  UesDAO.getInstance().list().then((data) => { 
-    ues.value = data; 
-  }); 
+      if (p.Id) parcoursMap.value.set(p.Id, p);
+    });
+    const data = await UesDAO.getInstance().list();
+    ues.value = data;
+    toast.success(`✅ ${data.length} UE${data.length > 1 ? 's' : ''} chargée${data.length > 1 ? 's' : ''}`, {
+      timeout: 2000
+    });
+  } catch (error) {
+    console.error('Erreur lors du chargement:', error);
+    toast.error('❌ Erreur lors du chargement des UEs', {
+      timeout: 4000
+    });
+  } finally {
+    isLoading.value = false;
+  }
 }); 
 
 </script>
 
 <template> 
-    <div class="container-fluid"> 
-      <div class="card mt-5"> 
-        <div class="card-header"> 
-          <div class="card-title"> 
-            <h4>Liste des Ues</h4> 
-          </div> 
+  <div class="container-fluid page-container">
+    <!-- En-tête de page -->
+    <div class="page-header animate-slide-in-down">
+      <div class="page-header-content">
+        <div class="page-icon">
+          <i class="bi bi-book-fill"></i>
+        </div>
+        <div>
+          <h2 class="page-title">Unités d'Enseignement</h2>
+          <p class="page-subtitle">Gérez les UEs et leurs parcours associés</p>
+        </div>
+      </div>
+    </div>
 
-            <CustomButton :color="BootstrapButtonEnum.info" @click="() => ueForm?.openForm()"> 
-                Ajouter une Ue 
-            </CustomButton> 
-        </div> 
+    <!-- Carte principale avec animation -->
+    <div class="card main-card animate-slide-in-up">
+      <div class="card-header">
+        <div class="card-title">
+          <i class="bi bi-list-ul me-2 color-white"></i>
+          <h4>Liste des UEs</h4>
+          <span class="badge-count" v-if="!isLoading">{{ ues.length }}</span>
+        </div>
 
-        <div class="card-body"> 
-          <CustomTable idAttribute="Id" :columns="columns" :data="ues" />
-        </div> 
-
+        <CustomButton 
+          :color="BootstrapButtonEnum.info" 
+          @click="() => ueForm?.openForm()"
+          class="btn-add-animation"
+        >
+          <i class="bi bi-plus-circle me-2"></i>
+          Ajouter une UE 
+        </CustomButton> 
       </div> 
 
+      <div class="card-body">
+        <!-- État de chargement avec skeleton -->
+        <div v-if="isLoading" class="skeleton-container">
+          <div class="skeleton-row" v-for="i in 5" :key="i">
+            <div class="skeleton-cell" style="width: 5%; height: 16px;"></div>
+            <div class="skeleton-cell" style="width: 5%; height: 16px;"></div>
+            <div class="skeleton-cell" style="width: 35%; height: 16px;"></div>
+            <div class="skeleton-cell" style="width: 15%; height: 16px;"></div>
+            <div class="skeleton-cell" style="width: 35%; height: 16px;"></div>
+            <div class="skeleton-cell" style="width: 5%; height: 16px;"></div>
+          </div>
+        </div>
+
+        <!-- Message si aucune UE -->
+        <div v-else-if="ues.length === 0" class="empty-state">
+          <div class="empty-state-icon">
+            <i class="bi bi-journal-x"></i>
+          </div>
+          <h4>Aucune UE disponible</h4>
+          <p>Commencez par créer votre première unité d'enseignement</p>
+          <CustomButton 
+            :color="BootstrapButtonEnum.info" 
+            @click="() => ueForm?.openForm()"
+            class="mt-3"
+          >
+            <i class="bi bi-plus-circle me-2"></i>
+            Créer une UE
+          </CustomButton>
+        </div>
+
+        <!-- Tableau des UEs avec wrapper pour scroll -->
+        <div v-else class="table-wrapper">
+          <CustomTable 
+            idAttribute="Id" 
+            :columns="columns" 
+            :data="ues"
+            class="table-modern"
+          />
+        </div>
+
+        <!-- Indicateur de suppression en cours -->
+        <div v-if="isDeleting" class="deleting-overlay">
+          <div class="loading-spinner"></div>
+          <span>Suppression en cours...</span>
+        </div>
+      </div> 
     </div> 
-    <UesForm ref="ueForm" @create:ues="onUesCreated" @update:ues="onUesUpdated" /> 
+  </div>
+  
+  <UesForm 
+    ref="ueForm" 
+    @create:ues="onUesCreated" 
+    @update:ues="onUesUpdated" 
+  /> 
 </template> 
 
 <style scoped>
+/* Styles spécifiques à UesListView */
+.card-header {
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-light) 100%);
+  position: relative;
+  overflow: hidden;
+}
 
+.card-title {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  position: relative;
+  z-index: 1;
+}
+
+@media (max-width: 768px) {
+  .card-header {
+    flex-direction: column;
+    gap: var(--spacing-4);
+    align-items: flex-start;
+  }
+}
 </style>

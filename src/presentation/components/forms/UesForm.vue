@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onBeforeMount, toRaw, watch } from 'vue';
+import { useToast } from 'vue-toastification';
 import { BootstrapButtonEnum } from '@/types/BootstrapButtonEnum';
 import { Ues } from '@/domain/entities/Ues';
 import CustomInput from '@/presentation/components/forms/components/CustomInput.vue';
@@ -9,9 +10,11 @@ import { ParcoursDAO } from '@/domain/daos/ParcoursDAO';
 import { UesDAO } from '@/domain/daos/UesDAO';
 import { Parcours } from '@/domain/entities/Parcours';
 
+const toast = useToast();
 const currentUes = ref<Ues>(new Ues(null, null, null, null));
 const parcoursOptions = ref<Parcours[]>([]);
 const isOpen = ref(false);
+const isSaving = ref(false);
 
 const formErrors = ref<{
   NumeroUe: string | null;
@@ -70,27 +73,38 @@ onBeforeMount(() => {
 
 const saveUes = () => {
   if (formErrors.value.NumeroUe || formErrors.value.Intitule || formErrors.value.Parcours) {
+    toast.warning('⚠️ Veuillez corriger les erreurs du formulaire', {
+      timeout: 3000
+    });
     return;
   }
+  
+  isSaving.value = true;
+  
   if (currentUes.value.Id) {
     UesDAO.getInstance().update(currentUes.value.Id, currentUes.value).then(() => {
-      alert('Ues mis à jour avec succès');
-      // Emission de l'événement de mise à jour avec une copie du ues mis à jour
       emit('update:ues', JSON.parse(JSON.stringify(toRaw(currentUes.value))));
       closeForm();
     }).catch((ex) => {
       console.error('Erreur lors de la mise à jour:', ex);
-      alert(ex.message);
+      toast.error(`❌ Erreur: ${ex.message}`, {
+        timeout: 4000
+      });
+    }).finally(() => {
+      isSaving.value = false;
     });
   } else {
     console.log('UE avant création:', currentUes.value);
     UesDAO.getInstance().create(currentUes.value).then((newUes) => {
-      alert('Ue créé avec succès');
       emit('create:ues', newUes);
       closeForm();
     }).catch((ex) => {
       console.error('Erreur lors de la création:', ex);
-      alert(ex.message);
+      toast.error(`❌ Erreur: ${ex.message}`, {
+        timeout: 4000
+      });
+    }).finally(() => {
+      isSaving.value = false;
     });
   }
 };
@@ -128,84 +142,97 @@ defineExpose({
 </script>
 
 <template>
-
-  <CustomModal :isOpen="isOpen">
-
+  <CustomModal :isOpen="isOpen" width="700px">
     <template v-slot:title>
-
-      <template v-if="ues && ues.Id"> Modification de l'UE</template>
-
-      <template v-else> Nouvelle UE</template>
-
+      <div class="form-title">
+        <i :class="currentUes.Id ? 'bi bi-pencil-square' : 'bi bi-plus-circle'" class="me-2"></i>
+        <span v-if="currentUes.Id">Modification de l'UE</span>
+        <span v-else>Nouvelle UE</span>
+      </div>
     </template>
 
     <template v-slot:body>
+      <form @submit.prevent="saveUes" class="ues-form">
+        <div class="form-row">
+          <CustomInput 
+            v-model="currentUes.NumeroUe" 
+            id="numeroue" 
+            libelle="Numéro UE" 
+            type="text"
+            placeholder="Ex: UE1, UE2..." 
+            :error="formErrors.NumeroUe"
+            icon="bi bi-hash"
+          />
 
-      <div class="text-start mt-1 mb-1">
+          <CustomInput 
+            v-model="currentUes.Intitule" 
+            id="intitule" 
+            libelle="Intitulé" 
+            type="text"
+            placeholder="Ex: Mathématiques Avancées" 
+            :error="formErrors.Intitule"
+            icon="bi bi-book-fill"
+          />
+        </div>
 
-        <form>
-
-          <CustomInput v-model="currentUes.NumeroUe" class="mt-2" id="numeroue" libelle="Numéro" type="text"
-            placeholder="Numéro d'UE" :error="formErrors.NumeroUe" />
-
-          <CustomInput v-model="currentUes.Intitule" id="intitule" libelle="Intitulé" type="text"
-            placeholder="Intitulé de l'UE" :error="formErrors.Intitule" />
-
-          <div class="form-group">
-
-            <label for="intitule">Parcours :</label>
-
-            <v-select multiple label="NomParcours" v-model="currentUes.Parcours" :options="parcoursOptions"></v-select>
-            <div v-if="formErrors.Parcours" class="invalid-feedback">
-              {{ formErrors.Parcours }}
-            </div>
-
+        <div class="form-group-modern">
+          <label for="parcours" class="form-label-modern">
+            Parcours
+            <span v-if="formErrors.Parcours" class="text-danger ms-1">*</span>
+          </label>
+          <div class="select-wrapper">
+            <i class="select-icon bi bi-diagram-3-fill"></i>
+            <v-select 
+              multiple 
+              label="NomParcours" 
+              v-model="currentUes.Parcours" 
+              :options="parcoursOptions"
+              placeholder="Sélectionnez les parcours"
+              class="v-select-modern"
+            ></v-select>
           </div>
+          <div v-if="formErrors.Parcours" class="error-message">
+            <i class="bi bi-x-circle me-1"></i>
+            {{ formErrors.Parcours }}
+          </div>
+        </div>
 
-        </form>
+        <div class="form-actions">
+          <CustomButton 
+            :color="BootstrapButtonEnum.danger" 
+            @click="closeForm"
+            :disabled="isSaving"
+            type="button"
+          >
+            <i class="bi bi-x-circle me-2"></i>
+            Annuler
+          </CustomButton>
 
-      </div>
-
-      <CustomButton class="mt-1" style="margin-left: 5px" :color="BootstrapButtonEnum.danger" @click="closeForm">
-        Annuler
-      </CustomButton>
-
-      <CustomButton class="mt-1" style="margin-left: 5px" :color="BootstrapButtonEnum.primary" @click="saveUes">
-        Enregistrer
-      </CustomButton>
-
+          <CustomButton 
+            :color="BootstrapButtonEnum.primary" 
+            @click="saveUes"
+            :loading="isSaving"
+            :disabled="isSaving"
+            type="button"
+          >
+            <i class="bi bi-check-circle me-2" v-if="!isSaving"></i>
+            {{ isSaving ? 'Enregistrement...' : 'Enregistrer' }}
+          </CustomButton>
+        </div>
+      </form>
     </template>
-
   </CustomModal>
-
 </template>
 
 <style scoped>
-.custom-modal {
-  position: absolute;
-  left: 0;
-  top: 0;
-  height: 100%;
-  width: 100%;
-  background-color: rgba(87, 86, 86, 0.5);
+/* Styles spécifiques à UesForm */
+.ues-form {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
+  gap: var(--spacing-2);
 }
 
-.custom-modal .card {
-  width: 250px;
-}
-
-.card-header {
-  background: #273656;
-  color: white;
-  text-align: left;
-}
-
-.card-text {
-  text-align: left;
+.form-row {
+  grid-template-columns: 1fr 2fr;
 }
 </style>

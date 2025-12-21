@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import { ref, onBeforeMount, toRaw, watch } from 'vue';
+import { useToast } from 'vue-toastification';
 import { BootstrapButtonEnum } from '@/types/BootstrapButtonEnum';
 import { Parcours } from '@/domain/entities/Parcours';
 import CustomInput from '@/presentation/components/forms/components/CustomInput.vue';
 import CustomButton from '@/presentation/components/forms/components/CustomButton.vue';
 import CustomModal from '@/presentation/components/modals/CustomModal.vue';
 import { ParcoursDAO } from '@/domain/daos/ParcoursDAO';
+
+const toast = useToast();
 
 const currentParcours = ref<Parcours>(new Parcours(null, null, null));
 const isOpen = ref(false);
@@ -48,27 +51,39 @@ onBeforeMount(() => {
   }
 });
 
+const isSaving = ref(false);
+
 const saveParcours = () => {
   if (formErrors.value.NomParcours || formErrors.value.AnneeFormation) {
+    toast.warning('⚠️ Veuillez corriger les erreurs du formulaire', {
+      timeout: 3000
+    });
     return;
   }
+  
+  isSaving.value = true;
+  
   if (currentParcours.value.Id) {
     ParcoursDAO.getInstance().update(currentParcours.value.Id, currentParcours.value).then(() => {
-      alert('Parcours mis à jour avec succès');
-      // Emission de l'événement de mise à jour avec une copie du parcours mis à jour
       emit('update:parcours', structuredClone(toRaw(currentParcours.value)));
       closeForm();
     }).catch((ex) => {
-      alert(ex.message);
+      toast.error(`❌ Erreur: ${ex.message}`, {
+        timeout: 4000
+      });
+    }).finally(() => {
+      isSaving.value = false;
     });
   } else {
-    console.log(currentParcours.value);
     ParcoursDAO.getInstance().create(currentParcours.value).then((newParcours) => {
-      alert('Parcours créé avec succès');
       emit('create:parcours', newParcours);
       closeForm();
     }).catch((ex) => {
-      alert(ex.message);
+      toast.error(`❌ Erreur: ${ex.message}`, {
+        timeout: 4000
+      });
+    }).finally(() => {
+      isSaving.value = false;
     });
   }
 };
@@ -103,77 +118,69 @@ defineExpose({
 </script>
 
 <template>
-
-  <CustomModal :isOpen="isOpen">
-
+  <CustomModal :isOpen="isOpen" width="600px">
     <template v-slot:title>
-
-      <template v-if="parcours && parcours.Id"> Modification du parcours </template>
-
-      <template v-else> Nouveau parcours </template>
-
+      <div class="form-title">
+        <i :class="currentParcours.Id ? 'bi bi-pencil-square' : 'bi bi-plus-circle'" class="me-2"></i>
+        <span v-if="currentParcours.Id">Modification du parcours</span>
+        <span v-else>Nouveau parcours</span>
+      </div>
     </template>
 
     <template v-slot:body>
+      <form @submit.prevent="saveParcours" class="parcours-form">
+        <CustomInput 
+          v-model="currentParcours.NomParcours" 
+          id="intitule" 
+          libelle="Intitulé" 
+          type="text"
+          placeholder="Ex: Master MIAGE parcours SIID" 
+          :error="formErrors.NomParcours"
+          icon="bi bi-bookmark-fill"
+        />
 
-      <div class="text-start mt-1 mb-1">
+        <CustomInput 
+          v-model="currentParcours.AnneeFormation" 
+          id="annee" 
+          libelle="Année de Formation" 
+          type="number"
+          placeholder="Ex: 2024" 
+          :error="formErrors.AnneeFormation"
+          icon="bi bi-calendar-fill"
+        />
 
-        <form>
+        <div class="form-actions">
+          <CustomButton 
+            :color="BootstrapButtonEnum.danger" 
+            @click="closeForm"
+            :disabled="isSaving"
+            type="button"
+          >
+            <i class="bi bi-x-circle me-2"></i>
+            Annuler
+          </CustomButton>
 
-          <CustomInput v-model="currentParcours.NomParcours" id="intitule" libelle="Intitulé" type="text"
-            placeholder="Intitulé du parcours" :error="formErrors.NomParcours" />
-
-          <CustomInput v-model="currentParcours.AnneeFormation" class="mt-2" id="annee" libelle="Année" type="number"
-            placeholder="Année de formation" :error="formErrors.AnneeFormation" />
-
-        </form>
-
-      </div>
-
-      <CustomButton class="mt-1" style="margin-left: 5px" :color="BootstrapButtonEnum.danger" @click="closeForm">
-
-        Annuler
-
-      </CustomButton>
-
-      <CustomButton class="mt-1" style="margin-left: 5px" :color="BootstrapButtonEnum.primary" @click="saveParcours">
-
-        Enregistrer
-
-      </CustomButton>
-
+          <CustomButton 
+            :color="BootstrapButtonEnum.primary" 
+            @click="saveParcours"
+            :loading="isSaving"
+            :disabled="isSaving"
+            type="button"
+          >
+            <i class="bi bi-check-circle me-2" v-if="!isSaving"></i>
+            {{ isSaving ? 'Enregistrement...' : 'Enregistrer' }}
+          </CustomButton>
+        </div>
+      </form>
     </template>
-
   </CustomModal>
-
 </template>
 
 <style scoped>
-.custom-modal {
-  position: absolute;
-  left: 0;
-  top: 0;
-  height: 100%;
-  width: 100%;
-  background-color: rgba(87, 86, 86, 0.5);
+/* Styles spécifiques à ParcoursForm */
+.parcours-form {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-}
-
-.custom-modal .card {
-  width: 250px;
-}
-
-.card-header {
-  background: #273656;
-  color: white;
-  text-align: left;
-}
-
-.card-text {
-  text-align: left;
+  gap: var(--spacing-2);
 }
 </style>
