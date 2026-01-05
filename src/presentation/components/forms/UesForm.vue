@@ -3,19 +3,29 @@ import { ref, onBeforeMount, toRaw, watch } from 'vue';
 import { useToast } from 'vue-toastification';
 import { BootstrapButtonEnum } from '@/types/BootstrapButtonEnum';
 import { Ues } from '@/domain/entities/Ues';
+import { Parcours } from '@/domain/entities/Parcours';
 import CustomInput from '@/presentation/components/forms/components/CustomInput.vue';
 import CustomButton from '@/presentation/components/forms/components/CustomButton.vue';
 import CustomModal from '@/presentation/components/modals/CustomModal.vue';
 import { ParcoursDAO } from '@/domain/daos/ParcoursDAO';
 import { UesDAO } from '@/domain/daos/UesDAO';
-import { Parcours } from '@/domain/entities/Parcours';
 
+// Système de notifications toast
 const toast = useToast();
+
+// UE en cours d'édition ou de création
 const currentUes = ref<Ues>(new Ues(null, null, null, null));
+
+// Liste des parcours disponibles pour le sélecteur
 const parcoursOptions = ref<Parcours[]>([]);
+
+// État d'ouverture du modal
 const isOpen = ref(false);
+
+// Indicateur de sauvegarde en cours
 const isSaving = ref(false);
 
+// Gestion des erreurs de validation du formulaire
 const formErrors = ref<{
   NumeroUe: string | null;
   Intitule: string | null;
@@ -27,16 +37,21 @@ const formErrors = ref<{
     Parcours: null,
   });
 
+// Convertit un parcours (ID ou objet) en instance de Parcours
 const parseParcours = (p: any): Parcours => {
     if (typeof p === 'number') {
+        // Si c'est un ID, chercher dans les options ou créer un parcours basique
         return parcoursOptions.value.find(opt => opt.Id === p) || new Parcours(p, `Parcours ${p}`, null);
     }
+    // Si c'est déjà un objet, créer une nouvelle instance
     return new Parcours(p.ID, p.NomParcours, p.AnneeFormation);
 };
 
+// Ouvre le formulaire en mode création ou édition
 const openForm = (ue: Ues | null = null) => { 
     isOpen.value = true; 
-    if (ue) { 
+    if (ue) {
+        // Mode édition : charger les données de l'UE existante
         currentUes.value = new Ues(
             ue.Id,
             ue.NumeroUe,
@@ -46,11 +61,13 @@ const openForm = (ue: Ues | null = null) => {
     } 
 };
 
+// Ferme le formulaire et réinitialise les données
 const closeForm = () => {
   isOpen.value = false;
   currentUes.value = new Ues(null, null, null, null);
 };
 
+// Props : UE à éditer (optionnelle)
 const props = defineProps({
   ues: {
     type: Object as () => Ues | null,
@@ -59,19 +76,25 @@ const props = defineProps({
   },
 });
 
+// Événements émis vers le composant parent
 const emit = defineEmits(['create:ues', 'update:ues']);
 
+// Initialisation avant le montage du composant
 onBeforeMount(() => {
+  // Charger l'UE si fournie en prop
   if (props.ues) {
     currentUes.value = props.ues;
   }
+  // Charger la liste des parcours disponibles
   ParcoursDAO.getInstance().list().then((parcours) => {
     parcoursOptions.value = parcours
   });
 });
 
 
+// Sauvegarde l'UE (création ou mise à jour)
 const saveUes = () => {
+  // Vérifier s'il y a des erreurs de validation
   if (formErrors.value.NumeroUe || formErrors.value.Intitule || formErrors.value.Parcours) {
     toast.warning('⚠️ Veuillez corriger les erreurs du formulaire', {
       timeout: 3000
@@ -82,6 +105,7 @@ const saveUes = () => {
   isSaving.value = true;
   
   if (currentUes.value.Id) {
+    // Mode édition : mettre à jour l'UE existante
     UesDAO.getInstance().update(currentUes.value.Id, currentUes.value).then(() => {
       emit('update:ues', JSON.parse(JSON.stringify(toRaw(currentUes.value))));
       closeForm();
@@ -94,7 +118,7 @@ const saveUes = () => {
       isSaving.value = false;
     });
   } else {
-    console.log('UE avant création:', currentUes.value);
+    // Mode création : créer une nouvelle UE
     UesDAO.getInstance().create(currentUes.value).then((newUes) => {
       emit('create:ues', newUes);
       closeForm();
@@ -109,6 +133,7 @@ const saveUes = () => {
   }
 };
 
+// Observer les changements de prop pour ouvrir le formulaire automatiquement
 watch(() => props.ues, (newUE) => { 
     if (newUE) { 
         currentUes.value = newUE; 
@@ -116,8 +141,8 @@ watch(() => props.ues, (newUE) => {
     } 
 }); 
 
+// Validation en temps réel de l'intitulé
 watch(() => currentUes.value.Intitule, () => {
-
   if (!currentUes.value.Intitule || currentUes.value.Intitule.trim() === '' || currentUes.value.Intitule.length < 3) {
     formErrors.value.Intitule = 'Le nom de l\'UE doit faire au moins 3 caractères';
   } else {
@@ -125,6 +150,7 @@ watch(() => currentUes.value.Intitule, () => {
   }
 });
 
+// Validation en temps réel du numéro UE
 watch(() => currentUes.value.NumeroUe, () => {
   if (!currentUes.value.NumeroUe || currentUes.value.NumeroUe.trim() === '') {
     formErrors.value.NumeroUe = 'Le numéro de l\'UE est obligatoire';
@@ -135,6 +161,7 @@ watch(() => currentUes.value.NumeroUe, () => {
   }
 });
 
+// Exposer les méthodes au composant parent
 defineExpose({
   openForm,
   closeForm,

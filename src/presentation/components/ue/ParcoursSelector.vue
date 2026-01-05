@@ -82,7 +82,6 @@ const handleChange = (value: Parcours[]) => {
 </template>
 
 <style scoped>
-/* Styles spécifiques - les classes card-title, form-label, etc. sont dans main.css */
 .section-subtitle {
   display: flex;
   align-items: center;

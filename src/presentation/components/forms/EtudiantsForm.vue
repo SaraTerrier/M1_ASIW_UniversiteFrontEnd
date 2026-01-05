@@ -3,20 +3,27 @@ import { ref, onBeforeMount, toRaw, watch } from 'vue';
 import { useToast } from 'vue-toastification';
 import { BootstrapButtonEnum } from '@/types/BootstrapButtonEnum';
 import { Etudiants } from '@/domain/entities/Etudiants';
+import { Parcours } from '@/domain/entities/Parcours';
 import CustomInput from '@/presentation/components/forms/components/CustomInput.vue';
 import CustomButton from '@/presentation/components/forms/components/CustomButton.vue';
 import CustomModal from '@/presentation/components/modals/CustomModal.vue';
 import { ParcoursDAO } from '@/domain/daos/ParcoursDAO';
 import { EtudiantsDAO } from '@/domain/daos/EtudiantsDAO';
-import { Parcours } from '@/domain/entities/Parcours';
 
 const toast = useToast();
+
+// Étudiant en cours d'édition ou de création
 const currentEtudiant = ref<Etudiants>(new Etudiants(null, null, null, null, null, null));
+// Sauvegarde de l'ID du parcours original (pour détecter les changements lors de l'édition)
 const originalParcoursId = ref<number | null>(null);
+// Liste de tous les parcours disponibles pour le sélecteur
 const parcoursOptions = ref<Parcours[]>([]);
+// Contrôle l'ouverture/fermeture du modal
 const isOpen = ref(false);
+// Indicateur de sauvegarde en cours
 const isSaving = ref(false);
 
+// Map des erreurs de validation du formulaire
 const formErrors = ref<{
   NumEtud: string | null;
   Nom: string | null;
@@ -32,6 +39,14 @@ const formErrors = ref<{
     Parcours: null,
   });
 
+/**
+ * Convertit un parcours (ID ou objet) en instance Parcours
+ * 
+ * Gère la compatibilité avec différents formats de données :
+ * - Si c'est un nombre : recherche dans parcoursOptions ou crée un parcours minimal
+ * - Si c'est un objet : crée une instance Parcours avec les propriétés
+ * 
+ */
 const parseParcours = (p: any): Parcours => {
     if (typeof p === 'number') {
         return parcoursOptions.value.find(opt => opt.Id === p) || new Parcours(p, `Parcours ${p}`, null);
@@ -39,6 +54,14 @@ const parseParcours = (p: any): Parcours => {
     return new Parcours(p.ID, p.NomParcours, p.AnneeFormation);
 };
 
+/**
+ * Ouvre le modal en mode création ou édition
+ * 
+ * En mode édition :
+ * - Parse le parcours de l'étudiant (gère différents formats)
+ * - Sauvegarde l'ID du parcours original pour détecter les changements
+ * - Clone les données de l'étudiant dans le formulaire
+ */
 const openForm = (etudiant: Etudiants | null = null) => { 
     isOpen.value = true; 
     if (etudiant) { 
@@ -55,12 +78,17 @@ const openForm = (etudiant: Etudiants | null = null) => {
     } 
 };
 
+/**
+ * Ferme le modal et réinitialise le formulaire
+ * Remet l'étudiant à un état vide et efface l'ID du parcours original
+ */
 const closeForm = () => {
   isOpen.value = false;
   currentEtudiant.value = new Etudiants(null, null, null, null, null, null);
   originalParcoursId.value = null;
 };
 
+// Étudiant à éditer (optionnel, pour mode édition)
 const props = defineProps({
   etudiant: {
     type: Object as () => Etudiants | null,
@@ -69,8 +97,18 @@ const props = defineProps({
   },
 });
 
+// Émissions d'événements vers le composant parent
+// - create:etudiant : Émis après création réussie d'un étudiant
+// - update:etudiant : Émis après modification réussie d'un étudiant
 const emit = defineEmits(['create:etudiant', 'update:etudiant']);
 
+/**
+ * Hook onBeforeMount - Initialisation avant le montage du composant
+ * 
+ * Processus :
+ * 1. Si un étudiant est passé en prop, il est chargé dans le formulaire
+ * 2. Charge la liste de tous les parcours disponibles pour le sélecteur
+ */
 onBeforeMount(() => {
   if (props.etudiant) {
     currentEtudiant.value = props.etudiant;
@@ -81,7 +119,21 @@ onBeforeMount(() => {
 });
 
 
+/**
+ * Sauvegarde l'étudiant (création ou modification)
+ * 
+ * Processus :
+ * 1. Vérifie qu'il n'y a pas d'erreurs de validation
+ * 2. Active l'indicateur de sauvegarde
+ * 3. Si l'étudiant a un ID : mise à jour (UPDATE)
+ *    - Passe l'originalParcoursId pour gérer les changements de parcours
+ *    Sinon : création (CREATE)
+ * 4. Émet l'événement approprié au parent
+ * 5. Ferme le modal en cas de succès
+ * 6. Affiche un message d'erreur en cas d'échec
+ */
 const saveEtudiants = () => {
+  // Validation avant sauvegarde
   if (formErrors.value.Nom || formErrors.value.Prenom || formErrors.value.Parcours || formErrors.value.NumEtud || formErrors.value.Email) {
     toast.warning('⚠️ Veuillez corriger les erreurs du formulaire', {
       timeout: 3000
@@ -91,6 +143,7 @@ const saveEtudiants = () => {
   
   isSaving.value = true;
   
+  // Mode ÉDITION : mise à jour d'un étudiant existant
   if (currentEtudiant.value.Id) {
     EtudiantsDAO.getInstance().update(currentEtudiant.value.Id, currentEtudiant.value, originalParcoursId.value).then(() => {
       emit('update:etudiant', JSON.parse(JSON.stringify(toRaw(currentEtudiant.value))));
@@ -104,6 +157,7 @@ const saveEtudiants = () => {
       isSaving.value = false;
     });
   } else {
+    // Mode CRÉATION : nouvel étudiant
     EtudiantsDAO.getInstance().create(currentEtudiant.value).then((newEtudiant) => {
       emit('create:etudiant', newEtudiant);
       closeForm();
@@ -118,7 +172,10 @@ const saveEtudiants = () => {
   }
 };
 
-
+/**
+ * Watcher sur props.etudiant
+ * Ouvre automatiquement le formulaire quand un étudiant est passé en prop
+ */
 watch(() => props.etudiant, (newEtudiant) => { 
     if (newEtudiant) { 
         currentEtudiant.value = newEtudiant; 
@@ -126,7 +183,12 @@ watch(() => props.etudiant, (newEtudiant) => {
     } 
 });
 
-// Validation du champ NumEtud de l'étudiant
+/**
+ * Valide le numéro étudiant en temps réel
+ * Règles :
+ * - Champ obligatoire
+ * - Minimum 3 caractères
+ */
 watch(() => currentEtudiant.value.NumEtud, () => {
     if (!currentEtudiant.value.NumEtud || currentEtudiant.value.NumEtud.trim() === '') {
         formErrors.value.NumEtud = 'Le numéro étudiant est requis';
@@ -137,7 +199,12 @@ watch(() => currentEtudiant.value.NumEtud, () => {
     }
 });
 
-// Validation du champ Nom de l'étudiant 
+/**
+ * Valide le nom de l'étudiant en temps réel
+ * Règles :
+ * - Champ obligatoire
+ * - Minimum 2 caractères
+ */
 watch(() => currentEtudiant.value.Nom, () => {
     if (!currentEtudiant.value.Nom || currentEtudiant.value.Nom.trim() === '') {
         formErrors.value.Nom = 'Le nom est requis';
@@ -148,7 +215,12 @@ watch(() => currentEtudiant.value.Nom, () => {
     }
 });
 
-// Validation du champ Prenom de l'étudiant
+/**
+ * Valide le prénom de l'étudiant en temps réel
+ * Règles :
+ * - Champ obligatoire
+ * - Minimum 2 caractères
+ */
 watch(() => currentEtudiant.value.Prenom, () => {
     if (!currentEtudiant.value.Prenom || currentEtudiant.value.Prenom.trim() === '') {
         formErrors.value.Prenom = 'Le prénom est requis';
@@ -159,7 +231,12 @@ watch(() => currentEtudiant.value.Prenom, () => {
     }
 });
 
-// Validation du champ Email de l'étudiant
+/**
+ * Valide l'email de l'étudiant en temps réel
+ * Règles :
+ * - Champ obligatoire
+ * - Format email valide (utilise une regex)
+ */
 watch(() => currentEtudiant.value.Email, () => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!currentEtudiant.value.Email || currentEtudiant.value.Email.trim() === '') {
@@ -171,6 +248,7 @@ watch(() => currentEtudiant.value.Email, () => {
     }
 });
 
+// Permet au composant parent d'appeler openForm() et closeForm() via une ref
 defineExpose({
   openForm,
   closeForm,
@@ -178,7 +256,9 @@ defineExpose({
 </script>
 
 <template>
+  <!-- Modal principal contenant le formulaire d'étudiant -->
   <CustomModal :isOpen="isOpen" width="700px">
+    <!-- Titre dynamique selon le mode (création/édition) -->
     <template v-slot:title>
       <div class="form-title">
         <i :class="currentEtudiant.Id ? 'bi bi-pencil-square' : 'bi bi-plus-circle'" class="me-2"></i>
@@ -187,8 +267,10 @@ defineExpose({
       </div>
     </template>
 
+    <!-- Corps du modal : formulaire avec tous les champs de l'étudiant -->
     <template v-slot:body>
       <form @submit.prevent="saveEtudiants" class="etudiant-form">
+        <!-- Champ : Numéro étudiant -->
         <CustomInput 
           v-model="currentEtudiant.NumEtud" 
           id="numetud" 
@@ -199,7 +281,9 @@ defineExpose({
           icon="bi bi-hash"
         />
 
+        <!-- Rangée : Nom et Prénom côte à côte -->
         <div class="form-row">
+          <!-- Champ : Nom -->
           <CustomInput 
             v-model="currentEtudiant.Nom" 
             id="nom" 
@@ -210,6 +294,7 @@ defineExpose({
             icon="bi bi-person-fill"
           />
 
+          <!-- Champ : Prénom -->
           <CustomInput 
             v-model="currentEtudiant.Prenom" 
             id="prenom" 
@@ -221,6 +306,7 @@ defineExpose({
           />
         </div>
 
+        <!-- Champ : Email avec validation du format -->
         <CustomInput 
           v-model="currentEtudiant.Email" 
           id="email" 
@@ -231,6 +317,7 @@ defineExpose({
           icon="bi bi-envelope-fill"
         />
 
+        <!-- Champ : Sélecteur de parcours avec v-select -->
         <div class="form-group-modern">
           <label for="parcours" class="form-label-modern">
             Parcours
@@ -252,7 +339,9 @@ defineExpose({
           </div>
         </div>
 
+        <!-- Boutons d'action : Annuler / Enregistrer -->
         <div class="form-actions">
+          <!-- Bouton Annuler : ferme le modal sans sauvegarder -->
           <CustomButton 
             :color="BootstrapButtonEnum.danger" 
             @click="closeForm"
@@ -263,6 +352,7 @@ defineExpose({
             Annuler
           </CustomButton>
 
+          <!-- Bouton Enregistrer : sauvegarde avec indicateur de chargement -->
           <CustomButton 
             :color="BootstrapButtonEnum.primary" 
             @click="saveEtudiants"

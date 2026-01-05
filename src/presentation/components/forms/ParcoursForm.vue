@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onBeforeMount, toRaw, watch } from 'vue';
-import { useToast } from 'vue-toastification';
+import { useToast } from 'vue-toastification'; // Service de notifications toast
 import { BootstrapButtonEnum } from '@/types/BootstrapButtonEnum';
 import { Parcours } from '@/domain/entities/Parcours';
 import CustomInput from '@/presentation/components/forms/components/CustomInput.vue';
@@ -10,9 +10,12 @@ import { ParcoursDAO } from '@/domain/daos/ParcoursDAO';
 
 const toast = useToast();
 
+// Parcours en cours d'édition ou de création
 const currentParcours = ref<Parcours>(new Parcours(null, null, null));
+// Contrôle l'ouverture/fermeture du modal
 const isOpen = ref(false);
 
+// Map des erreurs de validation du formulaire
 const formErrors = ref<{
   NomParcours: string | null;
   AnneeFormation: string | null;
@@ -22,19 +25,28 @@ const formErrors = ref<{
     AnneeFormation: null,
   });
 
+/**
+ * Ouvre le modal en mode création ou édition
+ */
 const openForm = (parcours: Parcours | null = null) => {
   isOpen.value = true;
 
   if (parcours) {
+    // Clone profond pour éviter les mutations directes de l'objet original
     currentParcours.value = structuredClone(toRaw(parcours));
   }
 };
 
+/**
+ * Ferme le modal et réinitialise le formulaire
+ * Remet le parcours à un état vide pour une prochaine ouverture en mode création
+ */
 const closeForm = () => {
   isOpen.value = false;
   currentParcours.value = new Parcours(null, null, null);
 };
 
+// Parcours à éditer (optionnel, pour mode édition)
 const props = defineProps({
   parcours: {
     type: Object as () => Parcours | null,
@@ -43,17 +55,38 @@ const props = defineProps({
   },
 });
 
+// Émissions d'événements vers le composant parent
+// - create:parcours : Émis après création réussie d'un parcours
+// - update:parcours : Émis après modification réussie d'un parcours
 const emit = defineEmits(['create:parcours', 'update:parcours']);
 
+/**
+ * Hook onBeforeMount - Initialisation avant le montage du composant
+ * Si un parcours est passé en prop, il est chargé dans le formulaire
+ */
 onBeforeMount(() => {
   if (props.parcours) {
     currentParcours.value = props.parcours;
   }
 });
 
+// Indicateur de sauvegarde en cours
 const isSaving = ref(false);
 
+/**
+ * Sauvegarde le parcours (création ou modification)
+ * 
+ * Processus :
+ * 1. Vérifie qu'il n'y a pas d'erreurs de validation
+ * 2. Active l'indicateur de sauvegarde
+ * 3. Si le parcours a un ID : mise à jour (UPDATE)
+ *    Sinon : création (CREATE)
+ * 4. Émet l'événement approprié au parent
+ * 5. Ferme le modal en cas de succès
+ * 6. Affiche un message d'erreur en cas d'échec
+ */
 const saveParcours = () => {
+  // Validation avant sauvegarde
   if (formErrors.value.NomParcours || formErrors.value.AnneeFormation) {
     toast.warning('⚠️ Veuillez corriger les erreurs du formulaire', {
       timeout: 3000
@@ -63,6 +96,7 @@ const saveParcours = () => {
   
   isSaving.value = true;
   
+  // Mode ÉDITION : mise à jour d'un parcours existant
   if (currentParcours.value.Id) {
     ParcoursDAO.getInstance().update(currentParcours.value.Id, currentParcours.value).then(() => {
       emit('update:parcours', structuredClone(toRaw(currentParcours.value)));
@@ -75,6 +109,7 @@ const saveParcours = () => {
       isSaving.value = false;
     });
   } else {
+    // Mode CRÉATION : nouveau parcours
     ParcoursDAO.getInstance().create(currentParcours.value).then((newParcours) => {
       emit('create:parcours', newParcours);
       closeForm();
@@ -88,6 +123,10 @@ const saveParcours = () => {
   }
 };
 
+/**
+ * Valide le nom du parcours en temps réel
+ * Règle : minimum 3 caractères (hors espaces)
+ */
 watch(() => currentParcours.value.NomParcours, () => {
 
   if (!currentParcours.value.NomParcours || currentParcours.value.NomParcours.trim() === '' || currentParcours.value.NomParcours.length < 3) {
@@ -100,6 +139,12 @@ watch(() => currentParcours.value.NomParcours, () => {
   }
 });
 
+/**
+ * Valide l'année de formation en temps réel
+ * Règles :
+ * - Doit être un nombre valide
+ * - Ne doit pas être dans le futur (année actuelle maximum)
+ */
 watch(() => currentParcours.value.AnneeFormation, () => {
 
   if (!currentParcours.value.AnneeFormation || isNaN(currentParcours.value.AnneeFormation) || currentParcours.value.AnneeFormation > new Date().getFullYear()) {
@@ -111,6 +156,7 @@ watch(() => currentParcours.value.AnneeFormation, () => {
   }
 });
 
+// Permet au composant parent d'appeler openForm() et closeForm() via une ref
 defineExpose({
   openForm,
   closeForm,
@@ -118,7 +164,9 @@ defineExpose({
 </script>
 
 <template>
+  <!-- Modal principal contenant le formulaire de parcours -->
   <CustomModal :isOpen="isOpen" width="600px">
+    <!-- Titre dynamique selon le mode (création/édition) -->
     <template v-slot:title>
       <div class="form-title">
         <i :class="currentParcours.Id ? 'bi bi-pencil-square' : 'bi bi-plus-circle'" class="me-2"></i>
@@ -127,8 +175,10 @@ defineExpose({
       </div>
     </template>
 
+    <!-- Corps du modal : formulaire avec champs et boutons -->
     <template v-slot:body>
       <form @submit.prevent="saveParcours" class="parcours-form">
+        <!-- Champ : Nom/Intitulé du parcours -->
         <CustomInput 
           v-model="currentParcours.NomParcours" 
           id="intitule" 
@@ -139,6 +189,7 @@ defineExpose({
           icon="bi bi-bookmark-fill"
         />
 
+        <!-- Champ : Année de formation -->
         <CustomInput 
           v-model="currentParcours.AnneeFormation" 
           id="annee" 
@@ -149,7 +200,9 @@ defineExpose({
           icon="bi bi-calendar-fill"
         />
 
+        <!-- Boutons d'action : Annuler / Enregistrer -->
         <div class="form-actions">
+          <!-- Bouton Annuler : ferme le modal sans sauvegarder -->
           <CustomButton 
             :color="BootstrapButtonEnum.danger" 
             @click="closeForm"
@@ -160,6 +213,7 @@ defineExpose({
             Annuler
           </CustomButton>
 
+          <!-- Bouton Enregistrer : sauvegarde avec indicateur de chargement -->
           <CustomButton 
             :color="BootstrapButtonEnum.primary" 
             @click="saveParcours"

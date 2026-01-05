@@ -1,25 +1,36 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
-import Swal from 'sweetalert2'; 
+import Swal from 'sweetalert2';
 import { useToast } from 'vue-toastification';
 import { BootstrapButtonEnum } from '@/types/BootstrapButtonEnum';
+import { Ues } from '@/domain/entities/Ues';
+import { Parcours } from '@/domain/entities/Parcours';
 import CustomButton from '@/presentation/components/forms/components/CustomButton.vue';
 import UesForm from '@/presentation/components/forms/UesForm.vue';
-import CustomTable from '../components/tables/CustomTable.vue'; 
-import { Ues } from '@/domain/entities/Ues'; 
+import CustomTable from '../components/tables/CustomTable.vue';
 import { UesDAO } from '@/domain/daos/UesDAO';
 import { ParcoursDAO } from '@/domain/daos/ParcoursDAO';
-import { Parcours } from '@/domain/entities/Parcours';
 
 const router = useRouter();
 const toast = useToast();
-const ueForm = ref<typeof UesForm | null>(null); 
+
+// Référence vers le composant UesForm pour appeler openForm()
+const ueForm = ref<typeof UesForm | null>(null);
+// Liste de toutes les UEs affichées dans le tableau
 const ues = ref<Ues[]>([]);
+// Map des parcours indexés par ID pour résolution rapide des noms
 const parcoursMap = ref<Map<number, Parcours>>(new Map());
+// Indicateur de chargement initial
 const isLoading = ref<boolean>(true);
+// Indicateur de suppression en cours
 const isDeleting = ref<boolean>(false);
 
+/**
+ * Callback appelé après la création réussie d'une UE
+ * Ajoute la nouvelle UE au début de la liste pour qu'elle soit visible immédiatement
+ * 
+ */
 const onUesCreated = (newUes: Ues) => { 
   ues.value.unshift(newUes);
   toast.success('✨ UE créée avec succès !', {
@@ -27,6 +38,11 @@ const onUesCreated = (newUes: Ues) => {
   });
 }; 
 
+/**
+ * Callback appelé après la mise à jour réussie d'une UE
+ * Recherche l'UE dans la liste et la remplace par la version mise à jour
+ * 
+ */
 const onUesUpdated = (updatedUes: Ues) => { 
   const index = ues.value.findIndex(p => p.Id === updatedUes.Id); 
   if (index !== -1) { 
@@ -37,6 +53,17 @@ const onUesUpdated = (updatedUes: Ues) => {
   }
 };
 
+/**
+ * Gère la suppression d'une UE avec confirmation
+ * 
+ * Processus :
+ * 1. Affiche une modale de confirmation (SweetAlert2) avec le nom de l'UE
+ * 2. Si confirmé, active l'indicateur de suppression
+ * 3. Appelle l'API pour supprimer l'UE
+ * 4. Retire l'UE de la liste locale
+ * 5. Affiche un message de succès ou d'erreur
+ * 
+ */
 const onDeleteUes = (p: Ues) => { 
   Swal.fire({ 
     title: 'Êtes-vous sûr ?', 
@@ -71,14 +98,34 @@ const onDeleteUes = (p: Ues) => {
   }) 
 } 
 
+
+/**
+ * Formateur pour la colonne Édition
+ * Retourne une icône stylisée pour le bouton d'édition
+ * 
+ */
 const formatterEdition = (ues: Ues) => { 
   return '<i class="bi bi-pen-fill text-primary"></i>'; 
 }; 
 
+/**
+ * Formateur pour la colonne Suppression
+ * Retourne une icône stylisée pour le bouton de suppression
+ * 
+ */
 const formatterSuppression = (ues: Ues) => { 
   return '<i class="bi bi-trash-fill text-danger"></i>'; 
 };
 
+/**
+ * Formateur pour la colonne Parcours
+ * Affiche les noms des parcours associés à l'UE, séparés par des virgules
+ * 
+ * Gère deux formats de données :
+ * - Tableau d'IDs (number) : résolution via parcoursMap
+ * - Tableau d'objets Parcours : accès direct aux noms
+ * 
+ */
 const formatterParcours = (ues: Ues) => {
   // Récupère les données des parcours associés à l'UE, retourne un tableau vide si inexistant
   const parcoursData = ues.Parcours as any[] || [];
@@ -101,10 +148,23 @@ const formatterParcours = (ues: Ues) => {
   return noms.join(', ');
 };
 
+/**
+ * Navigation vers la page de détail d'une UE pour l'édition complète
+ * 
+ */
 const onEditUes = (ues: Ues) => {
   router.push(`/ues/${ues.Id}`);
 };
 
+/**
+ * Définition des colonnes pour CustomTable
+ * Chaque colonne spécifie :
+ * - field : nom du champ dans l'entité Ues
+ * - label : libellé affiché dans l'en-tête
+ * - formatter : fonction de formatage personnalisé (optionnel)
+ * - onClick : action au clic (optionnel)
+ * - style : styles CSS personnalisés (optionnel)
+ */
 const columns = [ 
   { field: 'EditionUes', label: 'Edition', formatter: formatterEdition, onClick: onEditUes, style: 'width: 32px; text-align: center;' },
   { field: 'Id', label: 'Id', formatter: null,  onClick: undefined, style: undefined },
@@ -114,6 +174,16 @@ const columns = [
   { field: 'DeleteUes', label: 'Suppression', formatter: formatterSuppression, onClick: onDeleteUes, style: 'width: 32px;text-align:center;' }, 
 ];
 
+/**
+ * Hook onMounted - Chargement initial des données
+ * 
+ * Séquence :
+ * 1. Charge tous les parcours et les indexe dans une Map par ID
+ * 2. Charge toutes les UEs
+ * 3. Affiche un message de succès avec le nombre d'UEs chargées
+ * 4. Gère les erreurs avec message toast
+ * 5. Désactive l'indicateur de chargement
+ */
 onMounted(async () => {
   isLoading.value = true;
   try {
@@ -140,7 +210,7 @@ onMounted(async () => {
 
 <template> 
   <div class="container-fluid page-container">
-    <!-- En-tête de page -->
+    <!-- Titre, icône et description de la section -->
     <div class="page-header animate-slide-in-down">
       <div class="page-header-content">
         <div class="page-icon">
@@ -153,8 +223,9 @@ onMounted(async () => {
       </div>
     </div>
 
-    <!-- Carte principale avec animation -->
+    <!-- Contient le header avec bouton d'ajout et le corps avec tableau/squelette/état vide -->
     <div class="card main-card animate-slide-in-up">
+      <!-- Header : Titre avec compteur et bouton Ajouter -->
       <div class="card-header">
         <div class="card-title">
           <i class="bi bi-list-ul me-2 color-white"></i>
@@ -172,8 +243,9 @@ onMounted(async () => {
         </CustomButton> 
       </div> 
 
+      <!-- Corps de la carte : affichage conditionnel selon l'état -->
       <div class="card-body">
-        <!-- État de chargement avec skeleton -->
+        <!-- État de chargement : squelette animé (5 lignes) -->
         <div v-if="isLoading" class="skeleton-container">
           <div class="skeleton-row" v-for="i in 5" :key="i">
             <div class="skeleton-cell" style="width: 5%; height: 16px;"></div>
@@ -185,7 +257,7 @@ onMounted(async () => {
           </div>
         </div>
 
-        <!-- Message si aucune UE -->
+        <!-- État vide : affiché si aucune UE n'existe -->
         <div v-else-if="ues.length === 0" class="empty-state">
           <div class="empty-state-icon">
             <i class="bi bi-journal-x"></i>
@@ -202,7 +274,7 @@ onMounted(async () => {
           </CustomButton>
         </div>
 
-        <!-- Tableau des UEs avec wrapper pour scroll -->
+        <!-- Tableau principal : affiche les UEs avec CustomTable -->
         <div v-else class="table-wrapper">
           <CustomTable 
             idAttribute="Id" 
@@ -212,7 +284,7 @@ onMounted(async () => {
           />
         </div>
 
-        <!-- Indicateur de suppression en cours -->
+        <!-- Overlay de suppression : affiché pendant la suppression d'une UE -->
         <div v-if="isDeleting" class="deleting-overlay">
           <div class="loading-spinner"></div>
           <span>Suppression en cours...</span>
@@ -221,6 +293,7 @@ onMounted(async () => {
     </div> 
   </div>
   
+  <!-- Formulaire modal pour créer/éditer une UE (invisible jusqu'à ouverture) -->
   <UesForm 
     ref="ueForm" 
     @create:ues="onUesCreated" 
@@ -229,7 +302,6 @@ onMounted(async () => {
 </template> 
 
 <style scoped>
-/* Styles spécifiques à UesListView */
 .card-header {
   background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-light) 100%);
   position: relative;

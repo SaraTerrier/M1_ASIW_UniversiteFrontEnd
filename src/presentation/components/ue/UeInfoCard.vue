@@ -9,17 +9,20 @@ interface Props {
   isSaving?: boolean;
 }
 
+// Définition des événements émis par le composant
 interface Emits {
   (e: 'save', ueData: { NumeroUe: string; Intitule: string }): void;
   (e: 'update:ue', ue: Ues): void;
 }
 
+// Validers par défaut pour les props
 const props = withDefaults(defineProps<Props>(), {
   isSaving: false
 });
 
 const emit = defineEmits<Emits>();
 
+// Gestion des erreurs de validation du formulaire
 const formErrors = ref({
   NumeroUe: null as string | null,
   Intitule: null as string | null,
@@ -133,7 +136,6 @@ watch(() => props.ue?.Intitule, (newVal) => {
 </template>
 
 <style scoped>
-/* Styles spécifiques uniquement - les styles communs sont dans main.css */
 .modern-input {
   border: 2px solid var(--color-border);
   border-radius: var(--border-radius-lg);

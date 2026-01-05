@@ -4,12 +4,23 @@ import type { Etudiants } from '@/domain/entities/Etudiants';
 import type { Note } from '@/domain/entities/Note';
 import type { Parcours } from '@/domain/entities/Parcours';
 
+/**
+ * Props du composant NotesTable
+ * - etudiants : Liste des étudiants à afficher dans le tableau
+ * - notesMap : Map contenant les notes indexées par ID étudiant
+ * - allParcours : Liste de tous les parcours pour résolution des noms
+ */
 interface Props {
   etudiants: Etudiants[];
   notesMap: Map<number, Note>;
   allParcours: Parcours[];
 }
 
+/**
+ * Événements émis par le composant
+ * - save-note : Émis lors de la sauvegarde d'une note (création/modification)
+ * - delete-note : Émis lors de la suppression d'une note
+ */
 interface Emits {
   (e: 'save-note', etudiantId: number, value: number): void;
   (e: 'delete-note', etudiantId: number): void;
@@ -18,29 +29,54 @@ interface Emits {
 const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
 
+// ID de l'étudiant dont la note est en cours d'édition (null = aucune édition en cours)
 const editingNoteId = ref<number | null>(null);
+// Valeur temporaire de la note en cours d'édition
 const editingNoteValue = ref<number | null>(null);
 
+/**
+ * Récupère le nom du parcours d'un étudiant
+ * 
+ * Gère plusieurs formats de données :
+ * - Objet avec propriété NomParcours : retourne directement le nom
+ * - ID numérique : recherche le parcours dans allParcours
+ * - Valeur nulle/invalide : retourne 'N/A'
+ */
 const getParcoursName = (parcoursSuivi: any): string => {
   if (!parcoursSuivi) return 'N/A';
   
+  // Si c'est déjà un objet avec le nom, le retourner directement
   if (typeof parcoursSuivi === 'object' && parcoursSuivi.NomParcours) {
     return parcoursSuivi.NomParcours;
   }
   
+  // Extraire l'ID (nombre ou propriété Id de l'objet)
   const parcoursId = typeof parcoursSuivi === 'number' ? parcoursSuivi : parcoursSuivi?.Id;
   if (!parcoursId) return 'N/A';
   
+  // Rechercher le parcours dans la liste complète
   const parcours = props.allParcours.find(p => p.Id === parcoursId);
   return parcours?.NomParcours || 'N/A';
 };
 
+/**
+ * Récupère la note d'un étudiant depuis la Map
+ * 
+ */
 const getNote = (etudiantId: number | null): string => {
   if (!etudiantId) return '__';
   const noteObj = props.notesMap.get(etudiantId);
   return noteObj?.Valeur !== null && noteObj?.Valeur !== undefined ? noteObj.Valeur.toString() : '__';
 };
 
+/**
+ * Démarre le mode édition pour la note d'un étudiant
+ * 
+ * Processus :
+ * 1. Active l'édition en stockant l'ID de l'étudiant
+ * 2. Charge la valeur actuelle de la note (ou null si pas de note)
+ * 3. Affiche un champ input à la place de l'affichage de la note
+ */
 const startEditNote = (etudiantId: number | null) => {
   if (!etudiantId) return;
   editingNoteId.value = etudiantId;
@@ -48,17 +84,33 @@ const startEditNote = (etudiantId: number | null) => {
   editingNoteValue.value = noteObj?.Valeur !== null && noteObj?.Valeur !== undefined ? noteObj.Valeur : null;
 };
 
+/**
+ * Annule le mode édition en cours
+ * Réinitialise les variables d'édition à null
+ */
 const cancelEditNote = () => {
   editingNoteId.value = null;
   editingNoteValue.value = null;
 };
 
+/**
+ * Sauvegarde la note éditée
+ * 
+ * Processus :
+ * 1. Vérifie que l'ID étudiant et la valeur sont valides
+ * 2. Émet l'événement 'save-note' vers le parent
+ * 3. Annule le mode édition
+ */
 const saveNote = (etudiantId: number | null) => {
   if (!etudiantId || editingNoteValue.value === null) return;
   emit('save-note', etudiantId, editingNoteValue.value);
   cancelEditNote();
 };
 
+/**
+ * Supprime la note d'un étudiant
+ * Émet l'événement 'delete-note' vers le parent qui gérera la confirmation
+ */
 const deleteNote = (etudiantId: number | null) => {
   if (!etudiantId) return;
   emit('delete-note', etudiantId);
@@ -66,7 +118,9 @@ const deleteNote = (etudiantId: number | null) => {
 </script>
 
 <template>
+  <!-- Carte principale du tableau des notes -->
   <div class="card main-card animate-slide-in-up" style="animation-delay: 0.2s;">
+    <!-- En-tête avec titre et compteur d'étudiants -->
     <div class="card-header">
       <div class="card-title">
         <i class="bi bi-clipboard-data me-2 color-white"></i>
@@ -77,7 +131,7 @@ const deleteNote = (etudiantId: number | null) => {
       </div>
     </div>
     <div class="card-body">
-      <!-- Empty state -->
+      <!-- État vide : affiché si aucun étudiant n'est inscrit aux parcours sélectionnés -->
       <div v-if="etudiants.length === 0" class="empty-state">
         <div class="empty-state-icon">
           <i class="bi bi-people"></i>
@@ -86,9 +140,10 @@ const deleteNote = (etudiantId: number | null) => {
         <p>Sélectionnez des parcours pour voir les étudiants associés</p>
       </div>
       
-      <!-- Table des étudiants et notes -->
+      <!-- Tableau des étudiants avec leurs notes (mode édition inline) -->
       <div v-else class="table-wrapper">
         <table class="table table-modern">
+          <!-- En-tête du tableau avec icônes -->
           <thead>
             <tr>
               <th><i class="bi bi-hash me-1"></i> N° Étudiant</th>
@@ -99,17 +154,24 @@ const deleteNote = (etudiantId: number | null) => {
               <th class="text-center"><i class="bi bi-gear me-1"></i> Actions</th>
             </tr>
           </thead>
+          <!-- Corps du tableau : une ligne par étudiant -->
           <tbody>
             <tr v-for="etudiant in etudiants" :key="etudiant.Id || 0" class="table-row-hover">
+              <!-- Colonne : Numéro étudiant -->
               <td class="fw-semibold">{{ etudiant.NumEtud }}</td>
+              <!-- Colonne : Nom -->
               <td>{{ etudiant.Nom }}</td>
+              <!-- Colonne : Prénom -->
               <td>{{ etudiant.Prenom }}</td>
+              <!-- Colonne : Parcours avec badge -->
               <td>
                 <span class="badge bg-secondary">
                   {{ getParcoursName(etudiant.ParcoursSuivi) }}
                 </span>
               </td>
+              <!-- Colonne : Note (affichage ou édition) -->
               <td class="text-center">
+                <!-- Mode affichage : note ou '__' si pas de note -->
                 <span 
                   v-if="!editingNoteId || editingNoteId !== etudiant.Id" 
                   class="note-display"
@@ -117,6 +179,7 @@ const deleteNote = (etudiantId: number | null) => {
                 >
                   {{ getNote(etudiant.Id) }}
                 </span>
+                <!-- Mode édition : champ input numérique (0-20, pas de 0.5) -->
                 <input 
                   v-else
                   v-model.number="editingNoteValue"
@@ -130,9 +193,12 @@ const deleteNote = (etudiantId: number | null) => {
                   @keyup.escape="cancelEditNote"
                 />
               </td>
+              <!-- Colonne : Actions (boutons contextuels selon le mode) -->
               <td class="text-center">
                 <div class="action-buttons">
+                  <!-- Mode affichage : boutons Éditer/Ajouter et Supprimer -->
                   <template v-if="!editingNoteId || editingNoteId !== etudiant.Id">
+                    <!-- Bouton Éditer (ou Ajouter si pas de note) -->
                     <button 
                       class="btn btn-sm btn-action btn-edit"
                       @click="startEditNote(etudiant.Id)"
@@ -140,6 +206,7 @@ const deleteNote = (etudiantId: number | null) => {
                     >
                       <i :class="getNote(etudiant.Id) === '__' ? 'bi bi-plus-circle' : 'bi bi-pencil'"></i>
                     </button>
+                    <!-- Bouton Supprimer (visible uniquement si note existante) -->
                     <button 
                       v-if="getNote(etudiant.Id) !== '__'"
                       class="btn btn-sm btn-action btn-delete"
@@ -149,7 +216,9 @@ const deleteNote = (etudiantId: number | null) => {
                       <i class="bi bi-trash"></i>
                     </button>
                   </template>
+                  <!-- Mode édition : boutons Valider et Annuler -->
                   <template v-else>
+                    <!-- Bouton Valider : sauvegarde la note -->
                     <button 
                       class="btn btn-sm btn-action btn-validate"
                       @click="saveNote(etudiant.Id)"
@@ -157,6 +226,7 @@ const deleteNote = (etudiantId: number | null) => {
                     >
                       <i class="bi bi-check-lg"></i>
                     </button>
+                    <!-- Bouton Annuler : annule l'édition sans sauvegarder -->
                     <button 
                       class="btn btn-sm btn-action btn-cancel"
                       @click="cancelEditNote"
@@ -176,8 +246,6 @@ const deleteNote = (etudiantId: number | null) => {
 </template>
 
 <style scoped>
-/* Styles spécifiques - empty-state et table sont déjà dans main.css */
-
 .note-display {
   display: inline-block;
   min-width: 60px;

@@ -2,7 +2,7 @@
 import { ref, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import Swal from 'sweetalert2';
-import { useToast } from 'vue-toastification';
+import { useToast } from 'vue-toastification'
 import { UesDAO } from '@/domain/daos/UesDAO';
 import { ParcoursDAO } from '@/domain/daos/ParcoursDAO';
 import { EtudiantsDAO } from '@/domain/daos/EtudiantsDAO';
@@ -14,37 +14,41 @@ import type { Etudiants } from '@/domain/entities/Etudiants';
 import CustomButton from '@/presentation/components/forms/components/CustomButton.vue';
 import { BootstrapButtonEnum } from '@/types/BootstrapButtonEnum';
 import UeInfoCard from '@/presentation/components/ue/UeInfoCard.vue';
-import ParcoursSelector from '@/presentation/components/ue/ParcoursSelector.vue';
+import ParcoursSelector from '@/presentation/components/ue/ParcoursSelector.vue'; 
 import NotesTable from '@/presentation/components/ue/NotesTable.vue';
 
-
 const route = useRoute();
-const router = useRouter();
+const router = useRouter(); 
 const toast = useToast();
 
 const loading = ref(true);
-const isSaving = ref(false);
-const currentUe = ref<Ues | null>(null);
+const isSaving = ref(false); 
+const currentUe = ref<Ues | null>(null); 
 const allParcours = ref<Parcours[]>([]);
 const selectedParcours = ref<Parcours[]>([]);
-const previousParcours = ref<Parcours[]>([]);
-const etudiants = ref<Etudiants[]>([]);
-const notesMap = ref<Map<number, Note>>(new Map());
+const previousParcours = ref<Parcours[]>([]); 
+const etudiants = ref<Etudiants[]>([]); 
+const notesMap = ref<Map<number, Note>>(new Map()); 
 
-
-
-// Charger les données initiales
+/**
+ * Hook onMounted - Chargement initial des données
+ * 
+ * Séquence d'initialisation :
+ * 1. Récupère l'ID de l'UE depuis les paramètres de la route
+ * 2. Charge l'UE et tous les parcours disponibles
+ * 3. Initialise les parcours sélectionnés en comparant avec les parcours de l'UE
+ * 4. Charge les étudiants filtrés par parcours
+ * 5. Charge les notes de chaque étudiant pour cette UE
+ * 6. Affiche un message de succès ou d'erreur
+ */
 onMounted(async () => {
   const ueId = parseInt(route.params.id as string);
   
   try {
-    // Charger l'UE
     currentUe.value = await UesDAO.getInstance().get(ueId);
     
-    // Charger tous les parcours
     allParcours.value = await ParcoursDAO.getInstance().list();
     
-    // Initialiser les parcours sélectionnés
     if (currentUe.value.Parcours && Array.isArray(currentUe.value.Parcours)) {
       selectedParcours.value = allParcours.value.filter(p => 
         currentUe.value!.Parcours!.some((up: any) => {
@@ -52,14 +56,11 @@ onMounted(async () => {
           return parcoursId === p.Id;
         })
       );
-      // Sauvegarder l'état initial
       previousParcours.value = [...selectedParcours.value];
     }
     
-    // Charger les étudiants
     await loadEtudiants();
     
-    // Charger les notes pour cette UE
     await loadNotes();
     
     loading.value = false;
@@ -75,7 +76,16 @@ onMounted(async () => {
   }
 });
 
-// Charger les étudiants des parcours sélectionnés
+/**
+ * Charge les étudiants en fonction des parcours sélectionnés
+ * 
+ * Processus :
+ * 1. Si aucun parcours n'est sélectionné, vide la liste des étudiants
+ * 2. Charge tous les étudiants disponibles
+ * 3. Filtre uniquement les étudiants appartenant aux parcours sélectionnés
+ * 4. Gère la compatibilité entre différents formats (ID ou objet Parcours)
+ * 5. Recharge les notes pour les étudiants filtrés
+ */
 const loadEtudiants = async () => {
   if (!selectedParcours.value || selectedParcours.value.length === 0) {
     etudiants.value = [];
@@ -86,8 +96,6 @@ const loadEtudiants = async () => {
     const allEtudiants = await EtudiantsDAO.getInstance().list();
     const parcoursIds = selectedParcours.value.map(p => p.Id);
     
-    // Filtrer les étudiants appartenant aux parcours sélectionnés
-    // ParcoursSuivi peut être soit un ID (number) soit un objet Parcours
     etudiants.value = allEtudiants.filter(e => {
       const parcoursId = typeof e.ParcoursSuivi === 'number' 
         ? e.ParcoursSuivi 
@@ -101,14 +109,21 @@ const loadEtudiants = async () => {
   }
 };
 
-// Charger les notes pour cette UE
+/**
+ * Charge toutes les notes de l'UE pour les étudiants affichés
+ * 
+ * Cette fonction :
+ * - Vide la Map des notes existante
+ * - Charge individuellement la note de chaque étudiant pour l'UE actuelle
+ * - Stocke les notes dans une Map indexée par IdEtudiant pour accès O(1)
+ * 
+ */
 const loadNotes = async () => {
   if (!currentUe.value?.Id || etudiants.value.length === 0) return;
   
   try {
     notesMap.value.clear();
     
-    // Charger la note de chaque étudiant individuellement
     for (const etudiant of etudiants.value) {
       if (etudiant.Id) {
         const note = await NoteDAO.getInstance().getNoteByEtudiantAndUe(etudiant.Id, currentUe.value.Id);
@@ -122,22 +137,28 @@ const loadNotes = async () => {
   }
 };
 
-// Gérer le changement de parcours
+/**
+ * Gère les changements de sélection des parcours
+ * 
+ * 1. Compare les parcours précédents et nouveaux pour détecter les ajouts/suppressions
+ * 2. Pour chaque parcours ajouté : appelle l'API pour associer l'UE au parcours
+ * 3. Pour chaque parcours supprimé : appelle l'API pour dissocier l'UE du parcours
+ * 4. Met à jour la référence des parcours précédents
+ * 5. Recharge la liste des étudiants filtrée selon les nouveaux parcours
+ * 
+ */
 const onParcoursChange = async () => {
   if (!currentUe.value?.Id) return;
   
   try {
-    // Identifier les parcours ajoutés
     const addedParcours = selectedParcours.value.filter(
       sp => !previousParcours.value.some(pp => pp.Id === sp.Id)
     );
     
-    // Identifier les parcours supprimés
     const removedParcours = previousParcours.value.filter(
       pp => !selectedParcours.value.some(sp => sp.Id === pp.Id)
     );
     
-    // Ajouter les nouveaux parcours via l'API
     for (const parcours of addedParcours) {
       if (parcours.Id) {
         await ParcoursDAO.getInstance().addUEToParcours(parcours.Id, currentUe.value.Id);
@@ -147,7 +168,6 @@ const onParcoursChange = async () => {
       }
     }
 
-    // Supprimer les parcours via l'API si nécessaire
     for (const parcours of removedParcours) {
       if (parcours.Id) {
         await ParcoursDAO.getInstance().removeUEFromParcours(parcours.Id, currentUe.value.Id);
@@ -157,10 +177,8 @@ const onParcoursChange = async () => {
       }
     }
     
-    // Mettre à jour la liste précédente
     previousParcours.value = [...selectedParcours.value];
     
-    // Recharger les étudiants
     await loadEtudiants();
   } catch (error) {
     console.error('Erreur lors de la mise à jour des parcours:', error);
@@ -172,11 +190,23 @@ const onParcoursChange = async () => {
 
 
 
-// Sauvegarder une note
+/**
+ * Crée ou met à jour une note pour un étudiant
+ * 
+ * Validation :
+ * - Vérifie que la note est dans l'intervalle [0, 20]
+ * 
+ * Logique :
+ * - Si la note existe déjà avec un ID valide : mise à jour (UPDATE)
+ *   → Appelle updateByEtudiantAndUe puis recharge la note depuis l'API
+ * - Sinon : création d'une nouvelle note (CREATE)
+ *   → Crée une instance Note et l'enregistre via l'API
+ * - Met à jour la Map locale avec la note sauvegardée
+ * 
+ */
 const saveNote = async (etudiantId: number, noteValue: number) => {
   if (!currentUe.value?.Id) return;
   
-  // Validation
   if (noteValue < 0 || noteValue > 20) {
     toast.error('⚠️ La note doit être entre 0 et 20', {
       timeout: 3000
@@ -187,16 +217,13 @@ const saveNote = async (etudiantId: number, noteValue: number) => {
   try {
     const existingNote = notesMap.value.get(etudiantId);
     
-    // Vérifier si la note existe vraiment (a un ID valide dans la base)
     if (existingNote && existingNote.Id) {
-      // Modifier une note existante
       await NoteDAO.getInstance().updateByEtudiantAndUe(
         etudiantId, 
         currentUe.value.Id, 
         noteValue
       );
       
-      // L'API renvoie 204, donc on recharge la note depuis l'API
       const updatedNote = await NoteDAO.getInstance().getNoteByEtudiantAndUe(etudiantId, currentUe.value.Id);
       if (updatedNote) {
         notesMap.value.set(etudiantId, updatedNote);
@@ -206,14 +233,12 @@ const saveNote = async (etudiantId: number, noteValue: number) => {
         timeout: 3000
       });
     } else {
-      // Créer une nouvelle note
       let newNote = new Note(null, 0, 0, 0);
       newNote.IdEtudiant = etudiantId;
       newNote.IdUe = currentUe.value.Id;
       newNote.Valeur = noteValue;
       const savedNote = await NoteDAO.getInstance().create(newNote);
       
-      // Mettre à jour la map locale
       notesMap.value.set(etudiantId, savedNote);
       
       toast.success('✨ Note créée avec succès', {
@@ -228,7 +253,17 @@ const saveNote = async (etudiantId: number, noteValue: number) => {
   }
 };
 
-// Supprimer une note
+/**
+ * Supprime une note après confirmation de l'utilisateur
+ * 
+ * Processus :
+ * 1. Vérifie qu'une note existe pour cet étudiant
+ * 2. Affiche une modale de confirmation (SweetAlert2) avec style personnalisé
+ * 3. Si confirmé, supprime la note via l'API (deleteByEtudiantAndUe)
+ * 4. Retire la note de la Map locale pour mettre à jour l'interface
+ * 5. Affiche un message de succès ou d'erreur
+ * 
+ */
 const deleteNote = async (etudiantId: number) => {
   if (!currentUe.value?.Id) return;
   
@@ -258,7 +293,6 @@ const deleteNote = async (etudiantId: number) => {
       try {
         await NoteDAO.getInstance().deleteByEtudiantAndUe(etudiantId, currentUe.value!.Id!);
         
-        // Retirer de la map locale
         notesMap.value.delete(etudiantId);
         
         toast.success('🗑️ Note supprimée avec succès', {
@@ -274,27 +308,32 @@ const deleteNote = async (etudiantId: number) => {
   });
 };
 
-// Sauvegarder les informations de base de l'UE
+/**
+ * Met à jour les informations de base de l'UE (Numéro, Intitulé)
+ * 
+ * Processus :
+ * 1. Active l'indicateur de sauvegarde pour l'UI
+ * 2. Crée un objet Ues complet avec les nouvelles données
+ * 3. Appelle l'API pour mettre à jour l'UE
+ * 4. Met à jour l'état local avec les nouvelles valeurs
+ * 5. Affiche un message de succès ou d'erreur
+ * 
+ */
 const saveUeInfo = async (ueData: { NumeroUe: string; Intitule: string }) => {
   if (!currentUe.value) return;
   
   isSaving.value = true;
   try {
-    // Créer un objet Ues pour l'update
     const ueToUpdate = new Ues(
       currentUe.value.Id,
       ueData.Intitule,
       ueData.NumeroUe,
       selectedParcours.value
     );
-    
-    console.log('Données envoyées à l\'API:', ueToUpdate.toJSON());
 
-    // Mettre à jour l'UE via l'API
     await UesDAO.getInstance().update(currentUe.value.Id!, ueToUpdate);
     
     
-    // Mettre à jour l'objet local
     currentUe.value.NumeroUe = ueData.NumeroUe;
     currentUe.value.Intitule = ueData.Intitule;
     currentUe.value.Parcours = selectedParcours.value;
@@ -312,7 +351,9 @@ const saveUeInfo = async (ueData: { NumeroUe: string; Intitule: string }) => {
   }
 };
 
-// Retour à la liste
+/**
+ * Navigation de retour vers la liste des UEs
+ */
 const goBack = () => {
   router.push('/ues');
 };
@@ -320,9 +361,9 @@ const goBack = () => {
 
 <template>
   <div class="container-fluid page-container">
-    <!-- Loading state with skeleton -->
+    <!-- Squelettes animés affichés pendant le chargement initial -->
     <div v-if="loading" class="animate-fade-in">
-      <!-- Skeleton Header -->
+      <!-- Squelette : En-tête avec icône, titre et bouton -->
       <div class="page-header animate-slide-in-down">
         <div class="page-header-content">
           <div class="skeleton" style="width: 64px; height: 64px; border-radius: var(--border-radius-xl);"></div>
@@ -334,7 +375,7 @@ const goBack = () => {
         <div class="skeleton" style="width: 120px; height: 44px; border-radius: var(--border-radius-lg);"></div>
       </div>
       
-      <!-- Skeleton Cards -->
+      <!-- Squelettes : Cartes de contenu (3 cartes) -->
       <div class="skeleton-card-container">
         <div class="skeleton-card" v-for="i in 3" :key="i">
           <div class="skeleton" style="width: 100%; height: 60px; margin-bottom: var(--spacing-4);"></div>
@@ -343,7 +384,7 @@ const goBack = () => {
       </div>
     </div>
     
-    <!-- Error state -->
+    <!-- Affiché si l'UE n'existe pas ou a été supprimée -->
     <div v-else-if="!currentUe" class="error-container animate-fade-in">
       <div class="error-icon">
         <i class="bi bi-exclamation-triangle-fill"></i>
@@ -359,9 +400,8 @@ const goBack = () => {
       </CustomButton>
     </div>
     
-    <!-- Main content -->
     <div v-else>
-      <!-- En-tête avec informations UE -->
+      <!-- En-tête : Titre de l'UE, badge du numéro et bouton retour -->
       <div class="page-header animate-slide-in-down">
         <div class="page-header-content">
           <div class="page-icon">
@@ -385,21 +425,21 @@ const goBack = () => {
         </CustomButton>
       </div>
 
-      <!-- Informations générales de l'UE -->
+      <!-- Carte d'informations : affichage et édition des infos de base de l'UE -->
       <UeInfoCard 
         :ue="currentUe"
         :is-saving="isSaving"
         @save="saveUeInfo"
       />
 
-      <!-- Gestion des parcours -->
+      <!-- Sélecteur multi-parcours : ajoute/supprime l'UE des parcours sélectionnés -->
       <ParcoursSelector
         :all-parcours="allParcours"
         v-model:selected-parcours="selectedParcours"
         @change="onParcoursChange"
       />
 
-      <!-- Gestion des notes des étudiants -->
+      <!-- Tableau des notes : affiche les étudiants filtrés avec saisie/suppression de notes -->
       <NotesTable
         :etudiants="etudiants"
         :notes-map="notesMap"
@@ -412,7 +452,6 @@ const goBack = () => {
 </template>
 
 <style scoped>
-/* === LAYOUT & CONTAINERS === */
 .skeleton-card-container {
   display: grid;
   gap: var(--spacing-6);
@@ -453,7 +492,6 @@ const goBack = () => {
   margin-bottom: var(--spacing-6);
 }
 
-/* === HEADER === */
 .page-header {
   display: flex;
   align-items: center;
@@ -488,13 +526,11 @@ const goBack = () => {
   color: var(--color-text-tertiary);
 }
 
-/* === ANIMATIONS === */
 @keyframes float {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-10px); }
 }
 
-/* === RESPONSIVE === */
 @media (max-width: 768px) {
   .page-header {
     flex-direction: column;

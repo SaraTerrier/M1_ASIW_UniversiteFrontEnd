@@ -4,6 +4,7 @@ import ParcoursListView from '@/presentation/views/ParcoursListView.vue';
 import UesListView from '@/presentation/views/UesListView.vue';
 import UeDetailView from '@/presentation/views/UeDetailView.vue';
 import EtudiantListView from '@/presentation/views/EtudiantListView.vue';
+import StatistiquesView from '@/presentation/views/StatistiquesView.vue';
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -32,6 +33,11 @@ const router = createRouter({
       path: '/etudiants',
       name: 'etudiants',
       component: EtudiantListView
+    },
+    {
+      path: '/statistiques',
+      name: 'statistiques',
+      component: StatistiquesView
     },
   ]
 });

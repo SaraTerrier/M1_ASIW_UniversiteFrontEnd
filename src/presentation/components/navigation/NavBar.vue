@@ -40,6 +40,12 @@ import { RouterLink } from 'vue-router'
           <span>Étudiants</span>
         </RouterLink>
       </li>
+      <li class="nav-item">
+        <RouterLink class="nav-link" active-class="active" to="/statistiques">
+          <i class="bi bi-graph-up nav-icon"></i>
+          <span>Statistiques</span>
+        </RouterLink>
+      </li>
     </ul>
 
     <div class="divider"></div>
@@ -73,15 +79,14 @@ import { RouterLink } from 'vue-router'
 <style scoped>
 .sidebar {
   width: 280px;
-  height: 100vh;
+  min-height: 100vh;
   background: linear-gradient(180deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
   color: white;
   display: flex;
   flex-direction: column;
   padding: var(--spacing-4);
   box-shadow: var(--shadow-lg);
-  position: sticky;
-  top: 0;
+  overflow-y: auto;
 }
 
 .sidebar-header {
