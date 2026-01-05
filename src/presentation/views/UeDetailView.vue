@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import Swal from 'sweetalert2';
+import { useToast } from 'vue-toastification';
 import { UesDAO } from '@/domain/daos/UesDAO';
 import { ParcoursDAO } from '@/domain/daos/ParcoursDAO';
 import { EtudiantsDAO } from '@/domain/daos/EtudiantsDAO';
@@ -9,24 +11,27 @@ import { Ues } from '@/domain/entities/Ues';
 import { Parcours } from '@/domain/entities/Parcours';
 import { Note } from '@/domain/entities/Note';
 import type { Etudiants } from '@/domain/entities/Etudiants';
+import CustomButton from '@/presentation/components/forms/components/CustomButton.vue';
+import { BootstrapButtonEnum } from '@/types/BootstrapButtonEnum';
+import UeInfoCard from '@/presentation/components/ue/UeInfoCard.vue';
+import ParcoursSelector from '@/presentation/components/ue/ParcoursSelector.vue';
+import NotesTable from '@/presentation/components/ue/NotesTable.vue';
+
 
 const route = useRoute();
 const router = useRouter();
+const toast = useToast();
 
 const loading = ref(true);
+const isSaving = ref(false);
 const currentUe = ref<Ues | null>(null);
 const allParcours = ref<Parcours[]>([]);
 const selectedParcours = ref<Parcours[]>([]);
+const previousParcours = ref<Parcours[]>([]);
 const etudiants = ref<Etudiants[]>([]);
 const notesMap = ref<Map<number, Note>>(new Map());
 
-const editingNoteId = ref<number | null>(null);
-const editingNoteValue = ref<number | null>(null);
 
-const formErrors = ref({
-  NumeroUe: null as string | null,
-  Intitule: null as string | null,
-});
 
 // Charger les données initiales
 onMounted(async () => {
@@ -47,6 +52,8 @@ onMounted(async () => {
           return parcoursId === p.Id;
         })
       );
+      // Sauvegarder l'état initial
+      previousParcours.value = [...selectedParcours.value];
     }
     
     // Charger les étudiants
@@ -56,9 +63,14 @@ onMounted(async () => {
     await loadNotes();
     
     loading.value = false;
+    toast.success(`✅ UE "${currentUe.value.Intitule}" chargée avec succès`, {
+      timeout: 2000
+    });
   } catch (error) {
     console.error('Erreur lors du chargement:', error);
-    alert('Erreur lors du chargement de l\'UE');
+    toast.error('❌ Erreur lors du chargement de l\'UE', {
+      timeout: 4000
+    });
     loading.value = false;
   }
 });
@@ -112,54 +124,63 @@ const loadNotes = async () => {
 
 // Gérer le changement de parcours
 const onParcoursChange = async () => {
-  await loadEtudiants();
-};
-
-// Obtenir le nom du parcours à partir de son ID ou objet
-const getParcoursName = (parcoursSuivi: any): string => {
-  if (!parcoursSuivi) return 'N/A';
+  if (!currentUe.value?.Id) return;
   
-  // Si c'est déjà un objet Parcours avec NomParcours
-  if (typeof parcoursSuivi === 'object' && parcoursSuivi.NomParcours) {
-    return parcoursSuivi.NomParcours;
+  try {
+    // Identifier les parcours ajoutés
+    const addedParcours = selectedParcours.value.filter(
+      sp => !previousParcours.value.some(pp => pp.Id === sp.Id)
+    );
+    
+    // Identifier les parcours supprimés
+    const removedParcours = previousParcours.value.filter(
+      pp => !selectedParcours.value.some(sp => sp.Id === pp.Id)
+    );
+    
+    // Ajouter les nouveaux parcours via l'API
+    for (const parcours of addedParcours) {
+      if (parcours.Id) {
+        await ParcoursDAO.getInstance().addUEToParcours(parcours.Id, currentUe.value.Id);
+        toast.success(`✅ UE ajoutée au parcours "${parcours.NomParcours}"`, {
+          timeout: 2500
+        });
+      }
+    }
+
+    // Supprimer les parcours via l'API si nécessaire
+    for (const parcours of removedParcours) {
+      if (parcours.Id) {
+        await ParcoursDAO.getInstance().removeUEFromParcours(parcours.Id, currentUe.value.Id);
+        toast.success(`✅ UE retirée du parcours "${parcours.NomParcours}"`, {
+          timeout: 2500
+        });
+      }
+    }
+    
+    // Mettre à jour la liste précédente
+    previousParcours.value = [...selectedParcours.value];
+    
+    // Recharger les étudiants
+    await loadEtudiants();
+  } catch (error) {
+    console.error('Erreur lors de la mise à jour des parcours:', error);
+    toast.error('❌ Erreur lors de la mise à jour des parcours', {
+      timeout: 4000
+    });
   }
-  
-  // Si c'est un ID (number)
-  const parcoursId = typeof parcoursSuivi === 'number' ? parcoursSuivi : parcoursSuivi?.Id;
-  if (!parcoursId) return 'N/A';
-  
-  const parcours = allParcours.value.find(p => p.Id === parcoursId);
-  return parcours?.NomParcours || 'N/A';
 };
 
-// Obtenir la note d'un étudiant
-const getNote = (etudiantId: number | null): string => {
-  if (!etudiantId) return '__';
-  const noteObj = notesMap.value.get(etudiantId);
-  return noteObj?.Valeur !== null && noteObj?.Valeur !== undefined ? noteObj.Valeur.toString() : '__';
-};
 
-// Commencer l'édition d'une note
-const startEditNote = (etudiantId: number | null) => {
-  if (!etudiantId) return;
-  editingNoteId.value = etudiantId;
-  const noteObj = notesMap.value.get(etudiantId);
-  editingNoteValue.value = noteObj?.Valeur !== null && noteObj?.Valeur !== undefined ? noteObj.Valeur : null;
-};
-
-// Annuler l'édition d'une note
-const cancelEditNote = () => {
-  editingNoteId.value = null;
-  editingNoteValue.value = null;
-};
 
 // Sauvegarder une note
-const saveNote = async (etudiantId: number | null) => {
-  if (!etudiantId || editingNoteValue.value === null || !currentUe.value?.Id) return;
+const saveNote = async (etudiantId: number, noteValue: number) => {
+  if (!currentUe.value?.Id) return;
   
   // Validation
-  if (editingNoteValue.value < 0 || editingNoteValue.value > 20) {
-    alert('La note doit être entre 0 et 20');
+  if (noteValue < 0 || noteValue > 20) {
+    toast.error('⚠️ La note doit être entre 0 et 20', {
+      timeout: 3000
+    });
     return;
   }
   
@@ -172,7 +193,7 @@ const saveNote = async (etudiantId: number | null) => {
       await NoteDAO.getInstance().updateByEtudiantAndUe(
         etudiantId, 
         currentUe.value.Id, 
-        editingNoteValue.value
+        noteValue
       );
       
       // L'API renvoie 204, donc on recharge la note depuis l'API
@@ -180,79 +201,114 @@ const saveNote = async (etudiantId: number | null) => {
       if (updatedNote) {
         notesMap.value.set(etudiantId, updatedNote);
       }
+      
+      toast.info('📝 Note mise à jour avec succès', {
+        timeout: 3000
+      });
     } else {
       // Créer une nouvelle note
       let newNote = new Note(null, 0, 0, 0);
       newNote.IdEtudiant = etudiantId;
       newNote.IdUe = currentUe.value.Id;
-      newNote.Valeur = editingNoteValue.value;
+      newNote.Valeur = noteValue;
       const savedNote = await NoteDAO.getInstance().create(newNote);
       
       // Mettre à jour la map locale
       notesMap.value.set(etudiantId, savedNote);
+      
+      toast.success('✨ Note créée avec succès', {
+        timeout: 3000
+      });
     }
-    
-    cancelEditNote();
-    alert('Note enregistrée avec succès');
   } catch (error) {
     console.error('Erreur lors de la sauvegarde de la note:', error);
-    alert('Erreur lors de la sauvegarde de la note');
+    toast.error('❌ Erreur lors de la sauvegarde de la note', {
+      timeout: 4000
+    });
   }
 };
 
 // Supprimer une note
-const deleteNote = async (etudiantId: number | null) => {
-  if (!etudiantId || !currentUe.value?.Id) return;
+const deleteNote = async (etudiantId: number) => {
+  if (!currentUe.value?.Id) return;
   
   const noteObj = notesMap.value.get(etudiantId);
   if (!noteObj) {
-    alert('Aucune note à supprimer');
+    toast.warning('⚠️ Aucune note à supprimer', {
+      timeout: 2000
+    });
     return;
   }
   
-  if (!confirm('Êtes-vous sûr de vouloir supprimer cette note ?')) {
-    return;
-  }
-  
-  try {
-    await NoteDAO.getInstance().deleteByEtudiantAndUe(etudiantId, currentUe.value.Id);
-    
-    // Retirer de la map locale
-    notesMap.value.delete(etudiantId);
-    
-    alert('Note supprimée avec succès');
-  } catch (error) {
-    console.error('Erreur lors de la suppression de la note:', error);
-    alert('Erreur lors de la suppression de la note');
-  }
+  Swal.fire({
+    title: 'Êtes-vous sûr ?',
+    text: 'Voulez-vous vraiment supprimer cette note ?',
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonText: '🗑️ Supprimer',
+    cancelButtonText: 'Annuler',
+    confirmButtonColor: '#e63946',
+    cancelButtonColor: '#6c757d',
+    reverseButtons: true,
+    showClass: {
+      popup: 'animate-scale-in'
+    }
+  }).then(async (result) => {
+    if (result.isConfirmed) {
+      try {
+        await NoteDAO.getInstance().deleteByEtudiantAndUe(etudiantId, currentUe.value!.Id!);
+        
+        // Retirer de la map locale
+        notesMap.value.delete(etudiantId);
+        
+        toast.success('🗑️ Note supprimée avec succès', {
+          timeout: 3000
+        });
+      } catch (error) {
+        console.error('Erreur lors de la suppression de la note:', error);
+        toast.error('❌ Erreur lors de la suppression de la note', {
+          timeout: 4000
+        });
+      }
+    }
+  });
 };
 
 // Sauvegarder les informations de base de l'UE
-const saveUeInfo = async () => {
-  // Validation
-  formErrors.value.NumeroUe = null;
-  formErrors.value.Intitule = null;
+const saveUeInfo = async (ueData: { NumeroUe: string; Intitule: string }) => {
+  if (!currentUe.value) return;
   
-  if (!currentUe.value?.NumeroUe || currentUe.value.NumeroUe.trim().length < 2) {
-    formErrors.value.NumeroUe = 'Le numéro UE doit faire au moins 2 caractères';
-    return;
-  }
-  
-  if (!currentUe.value?.Intitule || currentUe.value.Intitule.trim().length < 3) {
-    formErrors.value.Intitule = 'L\'intitulé doit faire au moins 3 caractères';
-    return;
-  }
-  
+  isSaving.value = true;
   try {
-    // Mettre à jour les parcours
+    // Créer un objet Ues pour l'update
+    const ueToUpdate = new Ues(
+      currentUe.value.Id,
+      ueData.Intitule,
+      ueData.NumeroUe,
+      selectedParcours.value
+    );
+    
+    console.log('Données envoyées à l\'API:', ueToUpdate.toJSON());
+
+    // Mettre à jour l'UE via l'API
+    await UesDAO.getInstance().update(currentUe.value.Id!, ueToUpdate);
+    
+    
+    // Mettre à jour l'objet local
+    currentUe.value.NumeroUe = ueData.NumeroUe;
+    currentUe.value.Intitule = ueData.Intitule;
     currentUe.value.Parcours = selectedParcours.value;
     
-    // Sauvegarder
-    await UesDAO.getInstance().update(currentUe.value.Id!, currentUe.value);
-    alert('UE mise à jour avec succès');
+    toast.success('✨ UE mise à jour avec succès', {
+      timeout: 3000
+    });
   } catch (error) {
     console.error('Erreur lors de la mise à jour:', error);
-    alert('Erreur lors de la mise à jour de l\'UE');
+    toast.error('❌ Erreur lors de la mise à jour de l\'UE', {
+      timeout: 4000
+    });
+  } finally {
+    isSaving.value = false;
   }
 };
 
@@ -260,211 +316,195 @@ const saveUeInfo = async () => {
 const goBack = () => {
   router.push('/ues');
 };
-
-// Observer les changements de parcours pour validation
-watch(() => currentUe.value?.NumeroUe, (newVal) => {
-  if (newVal && newVal.trim().length >= 2) {
-    formErrors.value.NumeroUe = null;
-  }
-});
-
-watch(() => currentUe.value?.Intitule, (newVal) => {
-  if (newVal && newVal.trim().length >= 3) {
-    formErrors.value.Intitule = null;
-  }
-});
 </script>
 
 <template>
-  <div class="container mt-4">
-    <div v-if="loading" class="text-center">
-      <p>Chargement...</p>
+  <div class="container-fluid page-container">
+    <!-- Loading state with skeleton -->
+    <div v-if="loading" class="animate-fade-in">
+      <!-- Skeleton Header -->
+      <div class="page-header animate-slide-in-down">
+        <div class="page-header-content">
+          <div class="skeleton" style="width: 64px; height: 64px; border-radius: var(--border-radius-xl);"></div>
+          <div style="flex: 1;">
+            <div class="skeleton" style="width: 300px; height: 32px; margin-bottom: var(--spacing-2);"></div>
+            <div class="skeleton" style="width: 450px; height: 20px;"></div>
+          </div>
+        </div>
+        <div class="skeleton" style="width: 120px; height: 44px; border-radius: var(--border-radius-lg);"></div>
+      </div>
+      
+      <!-- Skeleton Cards -->
+      <div class="skeleton-card-container">
+        <div class="skeleton-card" v-for="i in 3" :key="i">
+          <div class="skeleton" style="width: 100%; height: 60px; margin-bottom: var(--spacing-4);"></div>
+          <div class="skeleton" style="width: 100%; height: 150px;"></div>
+        </div>
+      </div>
     </div>
     
-    <div v-else-if="currentUe">
-      <!-- En-tête avec informations de base -->
-      <div class="card mb-4">
-        <div class="card-header d-flex justify-content-between align-items-center">
-          <h3>Gestion de l'UE</h3>
-          <button class="btn btn-secondary btn-sm" @click="goBack">
-            ← Retour
-          </button>
-        </div>
-        <div class="card-body">
-          <form @submit.prevent="saveUeInfo">
-            <div class="row">
-              <div class="col-md-6">
-                <div class="mb-3">
-                  <label class="form-label">Numéro UE</label>
-                  <input 
-                    v-model="currentUe.NumeroUe" 
-                    type="text" 
-                    class="form-control"
-                    :class="{ 'is-invalid': formErrors.NumeroUe }"
-                  />
-                  <div v-if="formErrors.NumeroUe" class="invalid-feedback">
-                    {{ formErrors.NumeroUe }}
-                  </div>
-                </div>
-              </div>
-              <div class="col-md-6">
-                <div class="mb-3">
-                  <label class="form-label">Intitulé</label>
-                  <input 
-                    v-model="currentUe.Intitule" 
-                    type="text" 
-                    class="form-control"
-                    :class="{ 'is-invalid': formErrors.Intitule }"
-                  />
-                  <div v-if="formErrors.Intitule" class="invalid-feedback">
-                    {{ formErrors.Intitule }}
-                  </div>
-                </div>
-              </div>
-            </div>
-            <button type="submit" class="btn btn-primary">
-              Enregistrer les modifications
-            </button>
-          </form>
-        </div>
+    <!-- Error state -->
+    <div v-else-if="!currentUe" class="error-container animate-fade-in">
+      <div class="error-icon">
+        <i class="bi bi-exclamation-triangle-fill"></i>
       </div>
+      <h3>UE introuvable</h3>
+      <p>L'unité d'enseignement que vous recherchez n'existe pas ou a été supprimée.</p>
+      <CustomButton 
+        :color="BootstrapButtonEnum.info" 
+        @click="goBack"
+      >
+        <i class="bi bi-arrow-left me-2"></i>
+        Retour à la liste
+      </CustomButton>
+    </div>
+    
+    <!-- Main content -->
+    <div v-else>
+      <!-- En-tête avec informations UE -->
+      <div class="page-header animate-slide-in-down">
+        <div class="page-header-content">
+          <div class="page-icon">
+            <i class="bi bi-book-fill"></i>
+          </div>
+          <div class="page-header-info">
+            <h2 class="page-title">{{ currentUe.Intitule }}</h2>
+            <p class="page-subtitle">
+              <span class="ue-badge">{{ currentUe.NumeroUe }}</span>
+              <span class="separator">•</span>
+              Gestion complète de l'UE
+            </p>
+          </div>
+        </div>
+        <CustomButton 
+          :color="BootstrapButtonEnum.info" 
+          @click="goBack"
+        >
+          <i class="bi bi-arrow-left me-2"></i>
+          Retour
+        </CustomButton>
+      </div>
+
+      <!-- Informations générales de l'UE -->
+      <UeInfoCard 
+        :ue="currentUe"
+        :is-saving="isSaving"
+        @save="saveUeInfo"
+      />
 
       <!-- Gestion des parcours -->
-      <div class="card mb-4">
-        <div class="card-header">
-          <h4>Parcours associés</h4>
-        </div>
-        <div class="card-body">
-          <div class="mb-3">
-            <label class="form-label">Ajouter/Modifier des parcours</label>
-            <v-select 
-              multiple 
-              label="NomParcours" 
-              v-model="selectedParcours" 
-              :options="allParcours"
-              @update:modelValue="onParcoursChange"
-            ></v-select>
-          </div>
-          
-          <div v-if="selectedParcours && selectedParcours.length > 0">
-            <h5>Parcours sélectionnés :</h5>
-            <ul class="list-group">
-              <li 
-                v-for="parcours in selectedParcours" 
-                :key="parcours.Id || 0" 
-                class="list-group-item"
-              >
-                {{ parcours.NomParcours }} ({{ parcours.AnneeFormation }})
-              </li>
-            </ul>
-          </div>
-        </div>
-      </div>
+      <ParcoursSelector
+        :all-parcours="allParcours"
+        v-model:selected-parcours="selectedParcours"
+        @change="onParcoursChange"
+      />
 
       <!-- Gestion des notes des étudiants -->
-      <div class="card">
-        <div class="card-header">
-          <h4>Notes des étudiants</h4>
-        </div>
-        <div class="card-body">
-          <div v-if="etudiants.length === 0" class="alert alert-info">
-            Aucun étudiant inscrit dans les parcours sélectionnés
-          </div>
-          
-          <div v-else>
-            <table class="table table-striped">
-              <thead>
-                <tr>
-                  <th>N° Étudiant</th>
-                  <th>Nom</th>
-                  <th>Prénom</th>
-                  <th>Parcours</th>
-                  <th>Note</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="etudiant in etudiants" :key="etudiant.Id || 0">
-                  <td>{{ etudiant.NumEtud }}</td>
-                  <td>{{ etudiant.Nom }}</td>
-                  <td>{{ etudiant.Prenom }}</td>
-                  <td>{{ getParcoursName(etudiant.ParcoursSuivi) }}</td>
-                  <td>
-                    <span v-if="!editingNoteId || editingNoteId !== etudiant.Id">
-                      {{ getNote(etudiant.Id) }}
-                    </span>
-                    <input 
-                      v-else
-                      v-model.number="editingNoteValue"
-                      type="number"
-                      min="0"
-                      max="20"
-                      step="0.5"
-                      class="form-control form-control-sm"
-                      style="width: 80px; display: inline-block;"
-                    />
-                  </td>
-                  <td>
-                    <button 
-                      v-if="!editingNoteId || editingNoteId !== etudiant.Id"
-                      class="btn btn-sm btn-primary me-2"
-                      @click="startEditNote(etudiant.Id)"
-                    >
-                      {{ getNote(etudiant.Id) === '__' ? 'Ajouter' : 'Modifier' }}
-                    </button>
-                    <button 
-                      v-if="(!editingNoteId || editingNoteId !== etudiant.Id) && getNote(etudiant.Id) !== '__'"
-                      class="btn btn-sm btn-danger"
-                      @click="deleteNote(etudiant.Id)"
-                    >
-                      Supprimer
-                    </button>
-                    <template v-if="editingNoteId === etudiant.Id">
-                      <button 
-                        class="btn btn-sm btn-success me-2"
-                        @click="saveNote(etudiant.Id)"
-                      >
-                        Valider
-                      </button>
-                      <button 
-                        class="btn btn-sm btn-secondary"
-                        @click="cancelEditNote"
-                      >
-                        Annuler
-                      </button>
-                    </template>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div v-else class="alert alert-danger">
-      Erreur : UE introuvable
+      <NotesTable
+        :etudiants="etudiants"
+        :notes-map="notesMap"
+        :all-parcours="allParcours"
+        @save-note="saveNote"
+        @delete-note="deleteNote"
+      />
     </div>
   </div>
 </template>
 
-
 <style scoped>
-.card {
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+/* === LAYOUT & CONTAINERS === */
+.skeleton-card-container {
+  display: grid;
+  gap: var(--spacing-6);
 }
 
-.card-header {
-  background-color: #273656;
-  color: white;
+.skeleton-card,
+.error-container {
+  background: var(--color-surface);
+  border-radius: var(--border-radius-xl);
+  padding: var(--spacing-6);
+  box-shadow: var(--shadow-md);
 }
 
-.table {
-  margin-bottom: 0;
+.error-container {
+  text-align: center;
+  padding: var(--spacing-16);
+  margin: var(--spacing-8) auto;
+  max-width: 600px;
 }
 
-.btn-sm {
-  padding: 0.25rem 0.5rem;
-  font-size: 0.875rem;
+.error-icon {
+  font-size: 80px;
+  color: var(--color-danger);
+  margin-bottom: var(--spacing-6);
+  animation: float 3s ease-in-out infinite;
+}
+
+.error-container h3 {
+  margin: 0;
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-2xl);
+  margin-bottom: var(--spacing-3);
+}
+
+.error-container p {
+  color: var(--color-text-secondary);
+  margin-bottom: var(--spacing-6);
+}
+
+/* === HEADER === */
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-5);
+  flex-wrap: wrap;
+}
+
+.page-header-content {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-5);
+  flex: 1;
+}
+
+.page-header-info {
+  flex: 1;
+}
+
+.ue-badge {
+  display: inline-block;
+  background: var(--color-accent);
+  color: var(--color-primary-dark);
+  padding: var(--spacing-1) var(--spacing-3);
+  border-radius: var(--border-radius-md);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+}
+
+.separator {
+  margin: 0 var(--spacing-2);
+  color: var(--color-text-tertiary);
+}
+
+/* === ANIMATIONS === */
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+/* === RESPONSIVE === */
+@media (max-width: 768px) {
+  .page-header {
+    flex-direction: column;
+    gap: var(--spacing-4);
+    align-items: stretch;
+  }
+  
+  .page-header-content {
+    flex-direction: column;
+    text-align: center;
+  }
 }
 </style>

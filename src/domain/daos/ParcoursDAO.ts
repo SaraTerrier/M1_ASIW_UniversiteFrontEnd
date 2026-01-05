@@ -59,5 +59,23 @@ export class ParcoursDAO implements IDAO<Parcours> {
       throw new Error(ErrorMessage(error,'Impossible de récupérer les parcours')); 
     } 
   } 
+
+  // Ajouter une UE à un parcours
+  public async addUEToParcours(parcoursId: number, ueId: number): Promise<void> { 
+    try { 
+      await apiClient.post(`/api/Parcours/${parcoursId}/Ues/${ueId}`); 
+    } catch (error) { 
+      throw new Error(ErrorMessage(error,'Impossible d\'ajouter l\'UE au parcours')); 
+    }
+  }
+
+  // Retirer une UE d'un parcours
+  public async removeUEFromParcours(parcoursId: number, ueId: number): Promise<void> { 
+    try { 
+      await apiClient.delete(`/api/Parcours/${parcoursId}/Ues/${ueId}`); 
+    } catch (error) { 
+      throw new Error(ErrorMessage(error,'Impossible de retirer l\'UE du parcours')); 
+    }
+  }
   
 } 
