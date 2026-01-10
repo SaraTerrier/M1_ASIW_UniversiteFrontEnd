@@ -209,19 +209,20 @@ onMounted(async () => {
 </script>
 
 <template> 
-  <div class="container-fluid page-container">
-    <!-- Titre, icône et description de la section -->
-    <div class="page-header animate-slide-in-down">
-      <div class="page-header-content">
-        <div class="page-icon">
-          <i class="bi bi-book-fill"></i>
-        </div>
-        <div>
-          <h2 class="page-title">Unités d'Enseignement</h2>
-          <p class="page-subtitle">Gérez les UEs et leurs parcours associés</p>
+  <div>
+    <div class="container-fluid page-container">
+      <!-- Titre, icône et description de la section -->
+      <div class="page-header animate-slide-in-down">
+        <div class="page-header-content">
+          <div class="page-icon">
+            <i class="bi bi-book-fill"></i>
+          </div>
+          <div>
+            <h2 class="page-title">Unités d'Enseignement</h2>
+            <p class="page-subtitle">Gérez les UEs et leurs parcours associés</p>
+          </div>
         </div>
       </div>
-    </div>
 
     <!-- Contient le header avec bouton d'ajout et le corps avec tableau/squelette/état vide -->
     <div class="card main-card animate-slide-in-up">
@@ -299,6 +300,7 @@ onMounted(async () => {
     @create:ues="onUesCreated" 
     @update:ues="onUesUpdated" 
   /> 
+  </div>
 </template> 
 
 <style scoped>

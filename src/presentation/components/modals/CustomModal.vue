@@ -3,11 +3,11 @@ import { onMounted, onUnmounted } from 'vue';
 
 defineProps({
     isOpen: {
-        type: Object as () => boolean,
+        type: Boolean,
         required: true
     },
     width: {
-        type: Object as () => string | null,
+        type: String,
         required: false,
         default: null,
     },

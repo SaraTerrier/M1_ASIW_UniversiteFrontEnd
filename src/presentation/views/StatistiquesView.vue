@@ -10,7 +10,8 @@ import {
   LinearScale,
   ArcElement,
   PointElement,
-  LineElement
+  LineElement,
+  Filler
 } from 'chart.js';
 import { EtudiantsDAO } from '@/domain/daos/EtudiantsDAO';
 import { UesDAO } from '@/domain/daos/UesDAO';
@@ -37,7 +38,8 @@ ChartJS.register(
   LinearScale,
   ArcElement,
   PointElement,
-  LineElement
+  LineElement,
+  Filler
 );
 
 // DAOs - Instances singleton pour accéder aux données

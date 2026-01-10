@@ -192,62 +192,63 @@ onMounted(async () => {
 </script>
 
 <template> 
-  <div class="container-fluid page-container">
-    <!-- Titre, icône et description de la section -->
-    <div class="page-header animate-slide-in-down">
-      <div class="page-header-content">
-        <div class="page-icon">
-          <i class="bi bi-people-fill"></i>
-        </div>
-        <div>
-          <h2 class="page-title">Étudiants</h2>
-          <p class="page-subtitle">Gérez les étudiants et leurs informations</p>
+  <div>
+    <div class="container-fluid page-container">
+      <!-- Titre, icône et description de la section -->
+      <div class="page-header animate-slide-in-down">
+        <div class="page-header-content">
+          <div class="page-icon">
+            <i class="bi bi-people-fill"></i>
+          </div>
+          <div>
+            <h2 class="page-title">Étudiants</h2>
+            <p class="page-subtitle">Gérez les étudiants et leurs informations</p>
+          </div>
         </div>
       </div>
-    </div>
 
-    <!-- Contient le header avec bouton d'ajout et le corps avec tableau/squelette/état vide -->
-    <div class="card main-card animate-slide-in-up">
-      <!-- Header : Titre avec compteur et bouton Ajouter -->
-      <div class="card-header">
-        <div class="card-title">
-          <i class="bi bi-list-ul me-2 color-white"></i>
-          <h4>Liste des Étudiants</h4>
-          <span class="badge-count" v-if="!isLoading">{{ etudiants.length }}</span>
-        </div>
-
-        <CustomButton 
-          :color="BootstrapButtonEnum.info" 
-          @click="() => etudiantsForm?.openForm()"
-          class="btn-add-animation"
-        >
-          <i class="bi bi-plus-circle me-2"></i>
-          Ajouter un étudiant 
-        </CustomButton> 
-      </div> 
-
-      <!-- Corps de la carte : affichage conditionnel selon l'état -->
-      <div class="card-body">
-        <!-- État de chargement : squelette animé (5 lignes avec 8 colonnes) -->
-        <div v-if="isLoading" class="skeleton-container">
-          <div class="skeleton-row" v-for="i in 5" :key="i">
-            <div class="skeleton-cell" style="width: 5%; height: 16px;"></div>
-            <div class="skeleton-cell" style="width: 5%; height: 16px;"></div>
-            <div class="skeleton-cell" style="width: 10%; height: 16px;"></div>
-            <div class="skeleton-cell" style="width: 15%; height: 16px;"></div>
-            <div class="skeleton-cell" style="width: 15%; height: 16px;"></div>
-            <div class="skeleton-cell" style="width: 25%; height: 16px;"></div>
-            <div class="skeleton-cell" style="width: 20%; height: 16px;"></div>
-            <div class="skeleton-cell" style="width: 5%; height: 16px;"></div>
+      <!-- Contient le header avec bouton d'ajout et le corps avec tableau/squelette/état vide -->
+      <div class="card main-card animate-slide-in-up">
+        <!-- Header : Titre avec compteur et bouton Ajouter -->
+        <div class="card-header">
+          <div class="card-title">
+            <i class="bi bi-list-ul me-2 color-white"></i>
+            <h4>Liste des Étudiants</h4>
+            <span class="badge-count" v-if="!isLoading">{{ etudiants.length }}</span>
           </div>
-        </div>
 
-        <!-- État vide : affiché si aucun étudiant n'existe -->
-        <div v-else-if="etudiants.length === 0" class="empty-state">
-          <div class="empty-state-icon">
-            <i class="bi bi-person-x"></i>
+          <CustomButton 
+            :color="BootstrapButtonEnum.info" 
+            @click="() => etudiantsForm?.openForm()"
+            class="btn-add-animation"
+          >
+            <i class="bi bi-plus-circle me-2"></i>
+            Ajouter un étudiant 
+          </CustomButton> 
+        </div> 
+
+        <!-- Corps de la carte : affichage conditionnel selon l'état -->
+        <div class="card-body">
+          <!-- État de chargement : squelette animé (5 lignes avec 8 colonnes) -->
+          <div v-if="isLoading" class="skeleton-container">
+            <div class="skeleton-row" v-for="i in 5" :key="i">
+              <div class="skeleton-cell" style="width: 5%; height: 16px;"></div>
+              <div class="skeleton-cell" style="width: 5%; height: 16px;"></div>
+              <div class="skeleton-cell" style="width: 10%; height: 16px;"></div>
+              <div class="skeleton-cell" style="width: 15%; height: 16px;"></div>
+              <div class="skeleton-cell" style="width: 15%; height: 16px;"></div>
+              <div class="skeleton-cell" style="width: 25%; height: 16px;"></div>
+              <div class="skeleton-cell" style="width: 20%; height: 16px;"></div>
+              <div class="skeleton-cell" style="width: 5%; height: 16px;"></div>
+            </div>
           </div>
-          <h4>Aucun étudiant disponible</h4>
+
+          <!-- État vide : affiché si aucun étudiant n'existe -->
+          <div v-else-if="etudiants.length === 0" class="empty-state">
+            <div class="empty-state-icon">
+              <i class="bi bi-person-x"></i>
+            </div>
+            <h4>Aucun étudiant disponible</h4>
           <p>Commencez par ajouter votre premier étudiant</p>
           <CustomButton 
             :color="BootstrapButtonEnum.info" 
@@ -284,6 +285,7 @@ onMounted(async () => {
     @create:etudiant="onEtudiantCreated" 
     @update:etudiant="onEtudiantUpdated" 
   /> 
+  </div>
 </template> 
 
 <style scoped>

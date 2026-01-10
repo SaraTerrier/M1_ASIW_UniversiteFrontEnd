@@ -45,13 +45,16 @@ const formErrors = ref<{
  * Gère la compatibilité avec différents formats de données :
  * - Si c'est un nombre : recherche dans parcoursOptions ou crée un parcours minimal
  * - Si c'est un objet : crée une instance Parcours avec les propriétés
+ * - Si c'est null ou undefined : retourne null
  * 
  */
-const parseParcours = (p: any): Parcours => {
+const parseParcours = (p: any): Parcours | null => {
+    if (!p) return null;
+    
     if (typeof p === 'number') {
         return parcoursOptions.value.find(opt => opt.Id === p) || new Parcours(p, `Parcours ${p}`, null);
     }
-    return new Parcours(p.ID, p.NomParcours, p.AnneeFormation);
+    return new Parcours(p.ID || p.Id, p.NomParcours, p.AnneeFormation);
 };
 
 /**

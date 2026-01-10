@@ -160,19 +160,20 @@ onMounted(() => {
 </script>
 
 <template> 
-  <div class="container-fluid page-container">
-    <!-- Titre, icône et description de la section -->
-    <div class="page-header animate-slide-in-down">
-      <div class="page-header-content">
-        <div class="page-icon">
-          <i class="bi bi-diagram-3-fill"></i>
-        </div>
-        <div>
-          <h2 class="page-title">Parcours de Formation</h2>
-          <p class="page-subtitle">Gérez les différents parcours et années de formation</p>
+  <div>
+    <div class="container-fluid page-container">
+      <!-- Titre, icône et description de la section -->
+      <div class="page-header animate-slide-in-down">
+        <div class="page-header-content">
+          <div class="page-icon">
+            <i class="bi bi-diagram-3-fill"></i>
+          </div>
+          <div>
+            <h2 class="page-title">Parcours de Formation</h2>
+            <p class="page-subtitle">Gérez les différents parcours et années de formation</p>
+          </div>
         </div>
       </div>
-    </div>
 
     <!-- Contient le header avec bouton d'ajout et le corps avec tableau/squelette/état vide -->
     <div class="card main-card animate-slide-in-up">
@@ -249,6 +250,7 @@ onMounted(() => {
     @create:parcours="onParcoursCreated" 
     @update:parcours="onParcoursUpdated" 
   /> 
+  </div>
 </template> 
 
 <style scoped>
